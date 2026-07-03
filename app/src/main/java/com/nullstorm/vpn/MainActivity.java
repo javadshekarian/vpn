@@ -27,7 +27,6 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.card.MaterialCardView;
 import com.nullstorm.vpn.adapter.ConfigAdapter;
-import com.nullstorm.vpn.adapter.ConfigAdapter;
 import com.nullstorm.vpn.model.VpnConfig;
 import com.nullstorm.vpn.ui.UiUtils;
 
@@ -144,7 +143,6 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private View createConnectSection() {
-
         int cardHeight = UiUtils.dp(this, 230);
         MaterialCardView connectCard = new MaterialCardView(this);
 
@@ -171,25 +169,25 @@ public class MainActivity extends AppCompatActivity {
         ));
 
         connectButton = new MaterialButton(this);
-
-        int size = UiUtils.dp(this, 220);
+        int size = UiUtils.dp(this, 200);
 
         LinearLayout.LayoutParams btnParams =
                 new LinearLayout.LayoutParams(size, size);
 
         connectButton.setLayoutParams(btnParams);
 
-        connectButton.setText(R.string.vpn_connect);
+        connectButton.setText(R.string.vpn_disconnect);
         connectButton.setTextSize(UiUtils.sp(this, 7));
-        connectButton.setTextColor(Color.WHITE);
+        connectButton.setTextColor(getColor(R.color.red_400));
 
         connectButton.setCornerRadius(size / 2);
-
         connectButton.setAllCaps(true);
         connectButton.setTypeface(null, Typeface.BOLD);
         connectButton.setBackgroundTintList(
                 ColorStateList.valueOf(Color.parseColor("#1F1F1F"))
         );
+        connectButton.setStrokeColor(ColorStateList.valueOf(Color.parseColor("#3A3A3A")));
+        connectButton.setStrokeWidth(UiUtils.dp(this, 2));
 
         connectButton.setOnClickListener(v -> toggleConnection());
         connectLayout.addView(connectButton);
@@ -288,8 +286,20 @@ public class MainActivity extends AppCompatActivity {
         scaleX.start();
         scaleY.start();
 
-        connectButton.setText(isConnected ? R.string.vpn_disconnect : R.string.vpn_connect);
-        connectButton.setTextColor(isConnected ? getColor(R.color.red_400) : getColor(android.R.color.white));
+        connectButton.setText(isConnected ? R.string.vpn_connect : R.string.vpn_disconnect);
+        connectButton.setTextColor(isConnected ? getColor(R.color.white) : getColor(R.color.red_400));
+
+        if (isConnected) {
+            connectButton.setBackgroundTintList(
+                    ColorStateList.valueOf(Color.parseColor("#2E7D32"))
+            );
+            connectButton.setStrokeColor(ColorStateList.valueOf(Color.parseColor("#4CAF50")));
+        } else {
+            connectButton.setBackgroundTintList(
+                    ColorStateList.valueOf(Color.parseColor("#1F1F1F"))
+            );
+            connectButton.setStrokeColor(ColorStateList.valueOf(Color.parseColor("#3A3A3A")));
+        }
     }
 
     private void animateStatusIndicator() {
