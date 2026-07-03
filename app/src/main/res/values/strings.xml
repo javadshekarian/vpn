@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="vpn_name">NullStorm VPN</string>
+    <string name="vpn_subtitle">Secure • Private • Fast</string>
+    <string name="vpn_connect">CONNECT</string>
+    <string name="vpn_disconnect">DISCONNECT</string>
+    <string name="vpn_import_config">IMPORT CONFIG</string>
+    <string name="vpn_disconnected">Disconnected</string>
+    <string name="vpn_connecting">Connecting&#8230;</string>
+    <string name="vpn_connected">Connected</string>
+    <string name="vpn_disconnecting">Disconnecting&#8230;</string>
+    <string name="vpn_config_imported">Config imported successfully!</string>
+    <string name="vpn_config_import_failed">Failed to import config</string>
+    <string name="vpn_config_selected">Selected: %s</string>
+    <string name="vpn_imported_config">Imported Config</string>
+</resources>
