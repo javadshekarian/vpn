@@ -2,59 +2,52 @@ package com.nullstorm.vpn;
 
 import android.content.Intent;
 import android.net.VpnService;
-import android.os.ParcelFileDescriptor;
 import android.util.Log;
 
-import java.io.IOException;
+import libXray.ConvertShareLinksToXrayJsonRequest;
 
 public class CustomVpnService extends VpnService {
-    private static final String TAG = "CustomVpnService";
-    private ParcelFileDescriptor vpnInterface;
 
-    @Override
-    public void onCreate() {
-        super.onCreate();
-        Log.i(TAG, "VPN Service Created");
-    }
+    private static final String TAG = "CustomVpnService";
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        Log.i(TAG, "Starting VPN");
 
-        Builder builder = new Builder();
-        builder.setSession("Nebula VPN");
-        builder.addAddress("10.0.0.2", 32);
-        builder.addRoute("0.0.0.0", 0);
-        builder.addDnsServer("1.1.1.1");
-        builder.addDnsServer("8.8.8.8");
-        builder.setBlocking(false);
-        builder.setMtu(1500);
+        String config = intent.getStringExtra("config_content");
 
-        try {
-            vpnInterface = builder.establish();
-            if (vpnInterface == null) {
-                Log.e(TAG, "Failed To Establish VPN");
-                stopSelf();
-            } else Log.i(TAG, "VPN Established Successfully");
-        } catch (Exception e) {
-            Log.e(TAG, "VPN establishment error", e);
-            stopSelf();
+        if (config == null) {
+            Log.e(TAG, "Config is null");
+            return START_NOT_STICKY;
         }
 
-        return START_STICKY;
+        convertAndLog(config);
+
+        return START_NOT_STICKY;
+    }
+
+    private void convertAndLog(String vlessLink) {
+
+        try {
+            // 1. create request
+            ConvertShareLinksToXrayJsonRequest req =
+                    new ConvertShareLinksToXrayJsonRequest();
+            // 2. set vless link
+            req.setText(vlessLink);
+
+            // 3. get result (JSON)
+            String json = req.getText();
+
+            // 4. log output
+            Log.i(TAG, "XRAY JSON OUTPUT:  " + json);
+
+        } catch (Exception e) {
+            Log.e(TAG, "Conversion failed", e);
+        }
     }
 
     @Override
     public void onDestroy() {
-        Log.i(TAG, "Stopping VPN");
-        try {
-            if (vpnInterface != null) {
-                vpnInterface.close();
-                vpnInterface = null;
-            }
-        } catch (IOException e) {
-            Log.e(TAG, "Failed To Close VPN", e);
-        }
+        Log.i(TAG, "Service stopped");
         super.onDestroy();
     }
 }

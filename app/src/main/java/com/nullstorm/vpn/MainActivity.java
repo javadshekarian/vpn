@@ -403,7 +403,19 @@ public class MainActivity extends AppCompatActivity {
         connectButton.setEnabled(false);
         isConnected = !isConnected;
 
-        if (isConnected) connectToVpn();
+        if (isConnected) {
+            int selectedPosition = adapter.getSelectedPosition();
+            if(selectedPosition != RecyclerView.NO_POSITION && configs.size() > selectedPosition) {
+                VpnConfig selectedConfig = configs.get(selectedPosition);
+                connectToVpn(selectedConfig);
+            } else {
+                Toast.makeText(this, "Please select a config first", Toast.LENGTH_SHORT).show();
+                isConnected = false;
+                isProcessing = false;
+                connectButton.setEnabled(true);
+                return;
+            }
+        }
         else disconnectFromVpn();
 
         animateConnectButton();
@@ -415,9 +427,10 @@ public class MainActivity extends AppCompatActivity {
         }, 500);
     }
 
-    private void connectToVpn() {
+    private void connectToVpn(VpnConfig config) {
         Intent intent = new Intent(this, CustomVpnService.class);
         intent.setAction("START_VPN");
+        intent.putExtra("config_content", config.getContent());
         startService(intent);
 
         connectionStatus.setText(R.string.vpn_connecting);
@@ -498,6 +511,7 @@ public class MainActivity extends AppCompatActivity {
 
             Intent intent = new Intent(this, CustomVpnService.class);
             stopService(intent);
+            Log.i("MainActivity", "onConfigSelected Is Called, Your Config Is: " + config);
         }
     }
 

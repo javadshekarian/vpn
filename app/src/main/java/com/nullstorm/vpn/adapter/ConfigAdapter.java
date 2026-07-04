@@ -201,6 +201,10 @@ public class ConfigAdapter extends RecyclerView.Adapter<ConfigAdapter.ViewHolder
         });
     }
 
+    public int getSelectedPosition(){
+        return selectedPosition;
+    }
+
     @Override
     public int getItemCount() {
         return configs.size();
