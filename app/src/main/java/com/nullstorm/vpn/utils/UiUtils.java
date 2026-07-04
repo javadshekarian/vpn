@@ -1,4 +1,4 @@
-package com.nullstorm.vpn.ui;
+package com.nullstorm.vpn.utils;
 
 import android.content.Context;
 import android.util.TypedValue;

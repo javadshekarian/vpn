@@ -3,8 +3,9 @@ package com.nullstorm.vpn;
 import android.content.Intent;
 import android.net.VpnService;
 import android.util.Log;
-
-import libXray.ConvertShareLinksToXrayJsonRequest;
+import com.nullstorm.vpn.parser.fmt.VlessFmt;
+import com.nullstorm.vpn.parser.dto.entities.ProfileItem;
+import com.nullstorm.vpn.utils.Utils;
 
 public class CustomVpnService extends VpnService {
 
@@ -26,20 +27,22 @@ public class CustomVpnService extends VpnService {
     }
 
     private void convertAndLog(String vlessLink) {
-
         try {
-            // 1. create request
-            ConvertShareLinksToXrayJsonRequest req =
-                    new ConvertShareLinksToXrayJsonRequest();
-            // 2. set vless link
-            req.setText(vlessLink);
+            String fixedLink = Utils.sanitizeVlessLink(vlessLink);
+            ProfileItem config = VlessFmt.INSTANCE.parse(fixedLink);
+            if(config == null) {
+                Log.e(TAG, "Invalid Vless Link");
+                return;
+            }
 
-            // 3. get result (JSON)
-            String json = req.getText();
-
-            // 4. log output
-            Log.i(TAG, "XRAY JSON OUTPUT:  " + json);
-
+            Log.i(TAG, "===== VLESS CONFIG START =====");
+            Log.i(TAG, "Server: " + config.getServer());
+            Log.i(TAG, "Port: " + config.getServerPort());
+            Log.i(TAG, "Method: " + config.getMethod());
+            Log.i(TAG, "Password/UserInfo: " + config.getPassword());
+            Log.i(TAG, "Remarks: " + config.getRemarks());
+            Log.i(TAG, "Extra: " + config.toString());
+            Log.i(TAG, "===== VLESS CONFIG END =====");
         } catch (Exception e) {
             Log.e(TAG, "Conversion failed", e);
         }

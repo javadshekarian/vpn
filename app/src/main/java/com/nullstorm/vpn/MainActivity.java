@@ -36,7 +36,11 @@ import com.google.android.material.card.MaterialCardView;
 import com.google.android.material.navigation.NavigationView;
 import com.nullstorm.vpn.adapter.ConfigAdapter;
 import com.nullstorm.vpn.model.VpnConfig;
-import com.nullstorm.vpn.ui.UiUtils;
+import com.nullstorm.vpn.parser.dto.entities.ProfileItem;
+import com.nullstorm.vpn.parser.fmt.VlessFmt;
+import com.nullstorm.vpn.parser.fmt.VmessFmt;
+import com.nullstorm.vpn.utils.UiUtils;
+import com.nullstorm.vpn.utils.Utils;
 
 import java.io.BufferedReader;
 import java.io.InputStream;
@@ -80,8 +84,10 @@ public class MainActivity extends AppCompatActivity {
         configs.clear();
         for(String configData: configSet){
             String[] parts = configData.split("\\|\\|\\|");
+            String fixedLink = Utils.sanitizeVlessLink(parts[1]);
+            ProfileItem profile = VmessFmt.INSTANCE.parse(fixedLink);
             if(parts.length == 2)
-                configs.add(new VpnConfig(parts[0], parts[1]));
+                configs.add(new VpnConfig(parts[0], parts[1], profile));
         }
     }
 
@@ -112,7 +118,7 @@ public class MainActivity extends AppCompatActivity {
 
         LinearLayout.LayoutParams toolbarParams = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
-                UiUtils.dp(this, 56)
+                UiUtils.dp(this, 30)
         );
         toolbar.setLayoutParams(toolbarParams);
 
@@ -121,9 +127,9 @@ public class MainActivity extends AppCompatActivity {
         LinearLayout rootLayout = new LinearLayout(this);
         rootLayout.setOrientation(LinearLayout.VERTICAL);
         rootLayout.setPadding(
-                UiUtils.dp(this, 24),
+                UiUtils.dp(this, 10),
                 UiUtils.dp(this, 16),
-                UiUtils.dp(this, 24),
+                UiUtils.dp(this, 10),
                 UiUtils.dp(this, 24)
         );
         rootLayout.setBackgroundColor(getColor(android.R.color.black));
@@ -229,7 +235,7 @@ public class MainActivity extends AppCompatActivity {
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
         );
-        params.bottomMargin = UiUtils.dp(this, 16);
+        params.bottomMargin = UiUtils.dp(this, 0);
         headerLayout.setLayoutParams(params);
 
         return headerLayout;
@@ -242,10 +248,10 @@ public class MainActivity extends AppCompatActivity {
 
         statusIndicator = new View(this);
         LinearLayout.LayoutParams dotParams = new LinearLayout.LayoutParams(
-                UiUtils.dp(this, 12),
-                UiUtils.dp(this, 12)
+                UiUtils.dp(this, 0),
+                UiUtils.dp(this, 0)
         );
-        dotParams.rightMargin = UiUtils.dp(this, 12);
+        dotParams.rightMargin = UiUtils.dp(this, 0);
         statusIndicator.setLayoutParams(dotParams);
         statusIndicator.setBackgroundResource(R.drawable.status_indicator_disconnected);
 
@@ -261,14 +267,14 @@ public class MainActivity extends AppCompatActivity {
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
         );
-        params.bottomMargin = UiUtils.dp(this, 20);
+        params.bottomMargin = UiUtils.dp(this, 0);
         statusLayout.setLayoutParams(params);
 
         return statusLayout;
     }
 
     private View createConnectSection() {
-        int cardHeight = UiUtils.dp(this, 230);
+        int cardHeight = UiUtils.dp(this, 200);
         MaterialCardView connectCard = new MaterialCardView(this);
 
         LinearLayout.LayoutParams cardParams =
@@ -294,7 +300,7 @@ public class MainActivity extends AppCompatActivity {
         ));
 
         connectButton = new MaterialButton(this);
-        int size = UiUtils.dp(this, 200);
+        int size = UiUtils.dp(this, 180);
 
         LinearLayout.LayoutParams btnParams =
                 new LinearLayout.LayoutParams(size, size);
@@ -307,7 +313,7 @@ public class MainActivity extends AppCompatActivity {
         connectButton.setMaxHeight(size);
 
         connectButton.setText(R.string.vpn_disconnect);
-        connectButton.setTextSize(UiUtils.sp(this, 7));
+        connectButton.setTextSize(UiUtils.sp(this, 6));
         connectButton.setTextColor(getColor(R.color.red_400));
 
         connectButton.setCornerRadius(size / 2);
@@ -531,11 +537,14 @@ public class MainActivity extends AppCompatActivity {
             String content = sb.toString();
             Log.i(TAG, "Config imported successfully");
 
+            String fixedLink = Utils.sanitizeVlessLink(content);
+            ProfileItem profile = VlessFmt.INSTANCE.parse(fixedLink);
+
             String fileName = uri.getLastPathSegment();
             if (fileName != null && fileName.contains("/"))
                 fileName = fileName.substring(fileName.lastIndexOf("/") + 1);
 
-            configs.add(new VpnConfig(fileName != null ? fileName : getString(R.string.vpn_imported_config), content));
+            configs.add(new VpnConfig(fileName != null ? fileName : getString(R.string.vpn_imported_config), content, profile));
             adapter.notifyItemInserted(configs.size() - 1);
             saveConfigsToStorage();
 

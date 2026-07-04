@@ -16,4 +16,6 @@
     <string name="vpn_imported_config">Imported Config</string>
     <string name="vpn_menu_open">Open</string>
     <string name="vpn_menu_close">Close</string>
+    <string name="toast_incorrect_protocol">Incorrect protocol</string>
+    <string name="title_pref_auto_update_subscription">Automatic update subscriptions</string>
 </resources>
