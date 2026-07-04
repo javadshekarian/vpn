@@ -37,13 +37,15 @@ public class ConfigAdapter extends RecyclerView.Adapter<ConfigAdapter.ViewHolder
         TextView subtitle;
         View statusDot;
         MaterialCardView card;
+        TextView configNumber;
 
-        public ViewHolder(@NonNull MaterialCardView cardView, TextView title, TextView subtitle, View statusDot) {
+        public ViewHolder(@NonNull MaterialCardView cardView, TextView title, TextView subtitle, View statusDot, TextView configNumber) {
             super(cardView);
             this.card = cardView;
             this.title = title;
             this.subtitle = subtitle;
             this.statusDot = statusDot;
+            this.configNumber = configNumber;
         }
     }
 
@@ -55,30 +57,41 @@ public class ConfigAdapter extends RecyclerView.Adapter<ConfigAdapter.ViewHolder
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
         );
-        cardParams.bottomMargin = UiUtils.dp(context, 12);
+        cardParams.bottomMargin = UiUtils.dp(context, 8);
         card.setLayoutParams(cardParams);
-        card.setRadius(UiUtils.dp(context, 20));
-        card.setCardElevation(UiUtils.dp(context, 2));
-        card.setBackgroundColor(context.getColor(R.color.gray_700));
+        card.setRadius(UiUtils.dp(context, 12));
+        card.setCardElevation(0);
+        card.setBackgroundColor(context.getColor(android.R.color.transparent));
+        card.setStrokeWidth(0);
 
-        LinearLayout layout = new LinearLayout(context);
-        layout.setOrientation(LinearLayout.HORIZONTAL);
-        layout.setPadding(
-                UiUtils.dp(context, 20),
+        LinearLayout mainLayout = new LinearLayout(context);
+        mainLayout.setOrientation(LinearLayout.HORIZONTAL);
+        mainLayout.setPadding(
                 UiUtils.dp(context, 16),
-                UiUtils.dp(context, 20),
-                UiUtils.dp(context, 16)
+                UiUtils.dp(context, 14),
+                UiUtils.dp(context, 16),
+                UiUtils.dp(context, 14)
         );
-        layout.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        mainLayout.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        mainLayout.setBackgroundResource(R.drawable.config_item_background);
 
-        View statusDot = new View(context);
-        LinearLayout.LayoutParams dotParams = new LinearLayout.LayoutParams(
-                UiUtils.dp(context, 8),
-                UiUtils.dp(context, 8)
+        LinearLayout numberContainer = new LinearLayout(context);
+        numberContainer.setOrientation(LinearLayout.VERTICAL);
+        numberContainer.setGravity(android.view.Gravity.CENTER);
+        LinearLayout.LayoutParams numberParams = new LinearLayout.LayoutParams(
+                UiUtils.dp(context, 32),
+                UiUtils.dp(context, 32)
         );
-        dotParams.rightMargin = UiUtils.dp(context, 16);
-        statusDot.setLayoutParams(dotParams);
-        statusDot.setBackgroundResource(R.drawable.status_indicator_disconnected);
+        numberParams.rightMargin = UiUtils.dp(context, 14);
+        numberContainer.setLayoutParams(numberParams);
+        numberContainer.setBackgroundResource(R.drawable.config_number_badge);
+
+        TextView configNumber = new TextView(context);
+        configNumber.setTextSize(UiUtils.sp(context, 4));
+        configNumber.setTextColor(context.getColor(android.R.color.white));
+        configNumber.setTypeface(null, android.graphics.Typeface.BOLD);
+        configNumber.setGravity(android.view.Gravity.CENTER);
+        numberContainer.addView(configNumber);
 
         LinearLayout textContainer = new LinearLayout(context);
         textContainer.setOrientation(LinearLayout.VERTICAL);
@@ -88,31 +101,47 @@ public class ConfigAdapter extends RecyclerView.Adapter<ConfigAdapter.ViewHolder
                 1
         ));
 
+        LinearLayout titleRow = new LinearLayout(context);
+        titleRow.setOrientation(LinearLayout.HORIZONTAL);
+        titleRow.setGravity(android.view.Gravity.CENTER_VERTICAL);
+
         TextView title = new TextView(context);
-        title.setTextSize(UiUtils.sp(context, 16));
+        title.setTextSize(UiUtils.sp(context, 6));
         title.setTextColor(context.getColor(android.R.color.white));
         title.setTypeface(null, android.graphics.Typeface.BOLD);
+        LinearLayout.LayoutParams titleParams = new LinearLayout.LayoutParams(
+                0,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                1
+        );
+        title.setLayoutParams(titleParams);
+
+        View statusDot = new View(context);
+        LinearLayout.LayoutParams dotParams = new LinearLayout.LayoutParams(
+                UiUtils.dp(context, 6),
+                UiUtils.dp(context, 6)
+        );
+        dotParams.leftMargin = UiUtils.dp(context, 8);
+        statusDot.setLayoutParams(dotParams);
+        statusDot.setBackgroundResource(R.drawable.status_indicator_disconnected);
+
+        titleRow.addView(title);
+        titleRow.addView(statusDot);
 
         TextView subtitle = new TextView(context);
-        subtitle.setTextSize(UiUtils.sp(context, 12));
-        subtitle.setTextColor(context.getColor(R.color.gray_400));
-        subtitle.setPadding(0, UiUtils.dp(context, 4), 0, 0);
+        subtitle.setTextSize(UiUtils.sp(context, 5));
+        subtitle.setTextColor(context.getColor(R.color.gray_500));
+        subtitle.setPadding(0, UiUtils.dp(context, 2), 0, 0);
+        subtitle.setMaxLines(1);
 
-        textContainer.addView(title);
+        textContainer.addView(titleRow);
         textContainer.addView(subtitle);
 
-        TextView arrow = new TextView(context);
-        arrow.setText("›");
-        arrow.setTextSize(UiUtils.sp(context, 24));
-        arrow.setTextColor(context.getColor(R.color.gray_400));
-        arrow.setPadding(UiUtils.dp(context, 16), 0, 0, 0);
+        mainLayout.addView(numberContainer);
+        mainLayout.addView(textContainer);
+        card.addView(mainLayout);
 
-        layout.addView(statusDot);
-        layout.addView(textContainer);
-        layout.addView(arrow);
-        card.addView(layout);
-
-        return new ViewHolder(card, title, subtitle, statusDot);
+        return new ViewHolder(card, title, subtitle, statusDot, configNumber);
     }
 
     @Override
@@ -124,18 +153,31 @@ public class ConfigAdapter extends RecyclerView.Adapter<ConfigAdapter.ViewHolder
 
         VpnConfig config = configs.get(adapterPosition);
         holder.title.setText(config.getName());
+        holder.configNumber.setText(String.valueOf(adapterPosition + 1));
 
         String content = config.getContent();
-        String preview = content.length() > 50 ? content.substring(0, 50) + "..." : content;
+        String preview = content.length() > 60 ? content.substring(0, 60) + "..." : content;
         holder.subtitle.setText(preview);
+
+        LinearLayout mainLayout = (LinearLayout) holder.card.getChildAt(0);
 
         if (selectedPosition == adapterPosition) {
             holder.card.setStrokeColor(context.getColor(R.color.purple_500));
-            holder.card.setStrokeWidth(UiUtils.dp(context, 2));
+            holder.card.setStrokeWidth(UiUtils.dp(context, 1));
+            holder.card.setCardElevation(UiUtils.dp(context, 4));
+            mainLayout.setBackgroundResource(R.drawable.config_item_selected);
+            holder.title.setTextColor(context.getColor(R.color.purple_500));
             holder.statusDot.setBackgroundResource(R.drawable.status_indicator_connected);
+            holder.configNumber.setBackgroundResource(R.drawable.config_number_badge_selected);
+            holder.configNumber.setTextColor(context.getColor(android.R.color.white));
         } else {
             holder.card.setStrokeWidth(0);
+            holder.card.setCardElevation(0);
+            mainLayout.setBackgroundResource(R.drawable.config_item_background);
+            holder.title.setTextColor(context.getColor(android.R.color.white));
             holder.statusDot.setBackgroundResource(R.drawable.status_indicator_disconnected);
+            holder.configNumber.setBackgroundResource(R.drawable.config_number_badge);
+            holder.configNumber.setTextColor(context.getColor(android.R.color.white));
         }
 
         holder.itemView.setOnClickListener(v -> {

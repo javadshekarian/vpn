@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="app_name">NullStorm</string>
     <string name="vpn_name">NullStorm VPN</string>
     <string name="vpn_subtitle">Secure • Private • Fast</string>
     <string name="vpn_connect">CONNECT</string>
@@ -13,4 +14,6 @@
     <string name="vpn_config_import_failed">Failed to import config</string>
     <string name="vpn_config_selected">Selected: %s</string>
     <string name="vpn_imported_config">Imported Config</string>
+    <string name="vpn_menu_open">Open</string>
+    <string name="vpn_menu_close">Close</string>
 </resources>

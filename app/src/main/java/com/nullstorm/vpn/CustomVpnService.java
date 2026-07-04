@@ -35,9 +35,7 @@ public class CustomVpnService extends VpnService {
             if (vpnInterface == null) {
                 Log.e(TAG, "Failed To Establish VPN");
                 stopSelf();
-            } else {
-                Log.i(TAG, "VPN Established Successfully");
-            }
+            } else Log.i(TAG, "VPN Established Successfully");
         } catch (Exception e) {
             Log.e(TAG, "VPN establishment error", e);
             stopSelf();
