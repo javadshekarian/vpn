@@ -40,7 +40,7 @@ android {
 dependencies {
     implementation("androidx.appcompat:appcompat:1.7.1")
     implementation("com.google.android.material:material:1.12.0")
-    implementation(files("libs/libXray.aar"))
+    implementation(files("libs/libv2ray.aar"))
     implementation("androidx.core:core:1.10.1")
     implementation("com.google.code.gson:gson:2.11.0")
     implementation("com.github.GrenderG:Toasty:1.5.2")

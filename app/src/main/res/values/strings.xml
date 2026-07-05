@@ -16,6 +16,20 @@
     <string name="vpn_imported_config">Imported Config</string>
     <string name="vpn_menu_open">Open</string>
     <string name="vpn_menu_close">Close</string>
+
     <string name="toast_incorrect_protocol">Incorrect protocol</string>
     <string name="title_pref_auto_update_subscription">Automatic update subscriptions</string>
+    <string name="title_real_ping_all_server">Real delay config</string>
+    <string name="connection_runing_task_left">Number of running test tasks: %s</string>
+    <string name="app_tile_first_use">First use of this feature, please use the app to add server</string>
+    <string name="toast_config_file_invalid">Invalid config</string>
+    <string name="toast_allow_insecure_deprecated">WARNING: Skipping certificate verification "allowInsecure" will be disabled in August 2026. Please use certificate fingerprints as soon as possible. This feature will not be available after its expiration.</string>
+    <string name="toast_warning_pref_proxysharing_short">Allow connections from the LAN. Make sure you are in a trusted network</string>
+    <string name="toast_services_start">Start Services</string>
+    <string name="toast_root_required">Root access is required for this feature</string>
+    <string name="connection_test_available">Success: Connection took %dms</string>
+    <string name="connection_test_error">Fail to detect internet connection: %s</string>
+    <string name="connection_test_error_status_code">Error code: #%d</string>
+    <string name="title_service_restart">Service restart</string>
+    <string name="notification_action_stop_v2ray">Stop</string>
 </resources>
