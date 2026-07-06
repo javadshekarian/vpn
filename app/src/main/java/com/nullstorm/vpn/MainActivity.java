@@ -137,6 +137,19 @@ public class MainActivity extends AppCompatActivity implements ConfigAdapter.OnC
         }).start();
     }
 
+    private boolean isConfigExists(String content) {
+        List<String> serverList = MmkvManager.INSTANCE.decodeAllServerList();
+
+        for (String guid : serverList) {
+            String raw = MmkvManager.INSTANCE.decodeServerRaw(guid);
+
+            if (raw == null) continue;
+            if (raw.trim().equals(content.trim())) return true;
+        }
+
+        return false;
+    }
+
     private void importDownloadedConfig(String content) {
         try {
             String fixedLink = Utils.sanitizeVlessLink(content);
@@ -154,6 +167,16 @@ public class MainActivity extends AppCompatActivity implements ConfigAdapter.OnC
 
             String name = profile.getServiceName();
             if (name == null || name.isEmpty()) name = getString(R.string.vpn_imported_config);
+
+            if (isConfigExists(content)) {
+                Toast.makeText(
+                        this,
+                        "Config already exists",
+                        Toast.LENGTH_SHORT
+                ).show();
+                return;
+            }
+            
             String guid = MmkvManager.INSTANCE.encodeServerConfig("", profile);
             MmkvManager.INSTANCE.encodeServerRaw(guid, content);
             MmkvManager.INSTANCE.setSelectServer(guid);
@@ -723,6 +746,15 @@ public class MainActivity extends AppCompatActivity implements ConfigAdapter.OnC
             String fileName = profile.getServiceName();
             if (fileName == null || fileName.isEmpty())
                 fileName = getString(R.string.vpn_imported_config);
+
+            if (isConfigExists(content)) {
+                Toast.makeText(
+                        this,
+                        "Config already exists",
+                        Toast.LENGTH_SHORT
+                ).show();
+                return;
+            }
 
             String guid = MmkvManager.INSTANCE.encodeServerConfig("", profile);
 
