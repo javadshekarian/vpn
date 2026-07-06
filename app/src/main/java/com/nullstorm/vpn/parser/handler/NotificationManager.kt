@@ -3,8 +3,10 @@ package com.nullstorm.vpn.parser.handler
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
+import android.content.Intent
 import android.graphics.Color
 import android.os.Build
 import androidx.annotation.RequiresApi
@@ -12,8 +14,10 @@ import androidx.core.app.NotificationCompat
 import com.nullstorm.vpn.parser.AppConfig
 import com.nullstorm.vpn.R
 import com.nullstorm.vpn.parser.core.CoreServiceManager
+import com.nullstorm.vpn.parser.dto.entities.ProfileItem
 import com.nullstorm.vpn.parser.extension.toSpeedString
 import com.nullstorm.vpn.parser.util.LogUtil
+import com.nullstorm.vpn.MainActivity  // <-- تغییر این خط
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -35,10 +39,6 @@ object NotificationManager {
     private var speedNotificationJob: Job? = null
     private var mNotificationManager: NotificationManager? = null
 
-    /**
-     * Starts the speed notification.
-     * @param currentConfig The current profile configuration.
-     */
     fun startSpeedNotification() {
         if (MmkvManager.decodeSettingsBool(AppConfig.PREF_SPEED_ENABLED) != true) return
         if (speedNotificationJob != null || CoreServiceManager.isRunning() == false) return
@@ -53,14 +53,58 @@ object NotificationManager {
         }
     }
 
-    /**
-     * Shows the notification.
-     * @param currentConfig The current profile configuration.
-     */
+    fun showNotification(currentConfig: ProfileItem?) {
+        val service = getService() ?: return
 
-    /**
-     * Cancels the notification.
-     */
+        lastQueryTime = System.currentTimeMillis()
+
+        val flags = PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+
+        // ===== استفاده از MainActivity خودتان =====
+        val startMainIntent = Intent(service, MainActivity::class.java)  // <-- تغییر این خط
+        // ========================================
+
+        val contentPendingIntent = PendingIntent.getActivity(service, NOTIFICATION_PENDING_INTENT_CONTENT, startMainIntent, flags)
+
+        val stopV2RayIntent = Intent(AppConfig.BROADCAST_ACTION_SERVICE)
+        stopV2RayIntent.`package` = AppConfig.ANG_PACKAGE
+        stopV2RayIntent.putExtra("key", AppConfig.MSG_STATE_STOP)
+        val stopV2RayPendingIntent = PendingIntent.getBroadcast(service, NOTIFICATION_PENDING_INTENT_STOP_V2RAY, stopV2RayIntent, flags)
+
+        val restartV2RayIntent = Intent(AppConfig.BROADCAST_ACTION_SERVICE)
+        restartV2RayIntent.`package` = AppConfig.ANG_PACKAGE
+        restartV2RayIntent.putExtra("key", AppConfig.MSG_STATE_RESTART)
+        val restartV2RayPendingIntent = PendingIntent.getBroadcast(service, NOTIFICATION_PENDING_INTENT_RESTART_V2RAY, restartV2RayIntent, flags)
+
+        val channelId =
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                createNotificationChannel()
+            } else {
+                ""
+            }
+
+        mBuilder = NotificationCompat.Builder(service, channelId)
+            .setSmallIcon(R.drawable.ic_stat_name)
+            .setContentTitle(currentConfig?.remarks ?: "VPN")
+            .setPriority(NotificationCompat.PRIORITY_MIN)
+            .setOngoing(true)
+            .setShowWhen(false)
+            .setOnlyAlertOnce(true)
+            .setContentIntent(contentPendingIntent)
+            .addAction(
+                R.drawable.ic_delete_24dp,
+                service.getString(R.string.notification_action_stop_v2ray),
+                stopV2RayPendingIntent
+            )
+            .addAction(
+                R.drawable.ic_restore_24dp,
+                service.getString(R.string.title_service_restart),
+                restartV2RayPendingIntent
+            )
+
+        service.startForeground(NOTIFICATION_ID, mBuilder?.build())
+    }
+
     fun cancelNotification() {
         val service = getService() ?: return
         service.stopForeground(Service.STOP_FOREGROUND_REMOVE)
@@ -71,9 +115,6 @@ object NotificationManager {
         mNotificationManager = null
     }
 
-    /**
-     * Stops the speed notification.
-     */
     fun stopSpeedNotification() {
         speedNotificationJob?.let {
             it.cancel()
@@ -82,10 +123,6 @@ object NotificationManager {
         }
     }
 
-    /**
-     * Creates a notification channel for Android O and above.
-     * @return The channel ID.
-     */
     @RequiresApi(Build.VERSION_CODES.O)
     private fun createNotificationChannel(): String {
         val channelId = AppConfig.RAY_NG_CHANNEL_ID
@@ -101,12 +138,6 @@ object NotificationManager {
         return channelId
     }
 
-    /**
-     * Updates the notification with the given content text and traffic data.
-     * @param contentText The content text.
-     * @param proxyTraffic The proxy traffic.
-     * @param directTraffic The direct traffic.
-     */
     private fun updateNotification(contentText: String?, proxyTraffic: Long, directTraffic: Long) {
         if (mBuilder != null) {
             if (proxyTraffic < NOTIFICATION_ICON_THRESHOLD && directTraffic < NOTIFICATION_ICON_THRESHOLD) {
@@ -122,10 +153,6 @@ object NotificationManager {
         }
     }
 
-    /**
-     * Gets the notification manager.
-     * @return The notification manager.
-     */
     private fun getNotificationManager(): NotificationManager? {
         if (mNotificationManager == null) {
             val service = getService() ?: return null
@@ -134,13 +161,6 @@ object NotificationManager {
         return mNotificationManager
     }
 
-    /**
-     * Appends the speed string to the given text.
-     * @param text The text to append to.
-     * @param name The name of the tag.
-     * @param up The uplink speed.
-     * @param down The downlink speed.
-     */
     private fun appendSpeedString(text: StringBuilder, name: String?, up: Double, down: Double) {
         var n = name ?: "no tag"
         n = n.take(min(n.length, 6))
@@ -151,17 +171,10 @@ object NotificationManager {
         text.append("•  ${up.toLong().toSpeedString()}↑  ${down.toLong().toSpeedString()}↓\n")
     }
 
-    /**
-     * Updates the speed notification once.
-     * Queries traffic stats, separates proxy and direct, and updates the notification.
-     * @param lastZeroSpeed The previous zero speed state.
-     * @return The current zero speed state.
-     */
     private fun updateSpeedNotificationOnce(lastZeroSpeed: Boolean): Boolean {
         val queryTime = System.currentTimeMillis()
         val sinceLastQueryIn = (queryTime - lastQueryTime)
 
-        // If the query interval is too short, skip this round to avoid excessive CPU usage
         if (sinceLastQueryIn < QUERY_INTERVAL_MS) {
             LogUtil.w(AppConfig.TAG, "Query interval too short: ${sinceLastQueryIn}ms, skipping")
             lastQueryTime = queryTime
@@ -214,10 +227,6 @@ object NotificationManager {
         return zeroSpeed
     }
 
-    /**
-     * Gets the service instance.
-     * @return The service instance.
-     */
     private fun getService(): Service? {
         return CoreServiceManager.serviceControl?.get()?.getService()
     }

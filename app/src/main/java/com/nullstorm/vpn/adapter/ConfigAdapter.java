@@ -2,8 +2,10 @@ package com.nullstorm.vpn.adapter;
 
 import android.content.Context;
 import android.graphics.Typeface;
+import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
@@ -17,39 +19,52 @@ import com.nullstorm.vpn.parser.dto.entities.ProfileItem;
 import com.nullstorm.vpn.parser.enums.EConfigType;
 import com.nullstorm.vpn.utils.UiUtils;
 
+import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Adapter for displaying VPN configuration cards with delete functionality
+ */
 public class ConfigAdapter extends RecyclerView.Adapter<ConfigAdapter.ViewHolder> {
+
     private final Context context;
     private final List<VpnConfig> configs;
     private final OnConfigClickListener listener;
     private int selectedPosition = RecyclerView.NO_POSITION;
 
+    /**
+     * Interface for handling configuration click events
+     */
     public interface OnConfigClickListener {
         void onConfigSelected(VpnConfig config);
+        void onConfigDeleted(int position, VpnConfig config);
     }
 
     public ConfigAdapter(Context context, List<VpnConfig> configs, OnConfigClickListener listener) {
         this.context = context;
-        this.configs = configs;
+        this.configs = new ArrayList<>(configs);
         this.listener = listener;
     }
 
+    /**
+     * ViewHolder class for configuration cards
+     */
     public static class ViewHolder extends RecyclerView.ViewHolder {
-        TextView title;
-        View statusDot;
-        MaterialCardView card;
-        TextView configNumber;
-        TextView protocolBadge;
-        TextView serverAddress;
-        TextView connectionDetails;
-        TextView securityInfo;
+        public final MaterialCardView card;
+        public final TextView title;
+        public final View statusDot;
+        public final TextView configNumber;
+        public final TextView protocolBadge;
+        public final TextView serverAddress;
+        public final TextView connectionDetails;
+        public final TextView securityInfo;
+        public final ImageView deleteButton;
 
-        public ViewHolder(@NonNull MaterialCardView cardView, TextView title,
-                          View statusDot, TextView configNumber, TextView protocolBadge,
-                          TextView serverAddress, TextView connectionDetails, TextView securityInfo) {
-            super(cardView);
-            this.card = cardView;
+        public ViewHolder(@NonNull MaterialCardView card, TextView title, View statusDot,
+                          TextView configNumber, TextView protocolBadge, TextView serverAddress,
+                          TextView connectionDetails, TextView securityInfo, ImageView deleteButton) {
+            super(card);
+            this.card = card;
             this.title = title;
             this.statusDot = statusDot;
             this.configNumber = configNumber;
@@ -57,12 +72,14 @@ public class ConfigAdapter extends RecyclerView.Adapter<ConfigAdapter.ViewHolder
             this.serverAddress = serverAddress;
             this.connectionDetails = connectionDetails;
             this.securityInfo = securityInfo;
+            this.deleteButton = deleteButton;
         }
     }
 
     @NonNull
     @Override
     public ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+        // Create MaterialCardView as the main container
         MaterialCardView card = new MaterialCardView(context);
         RecyclerView.LayoutParams cardParams = new RecyclerView.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
@@ -75,6 +92,7 @@ public class ConfigAdapter extends RecyclerView.Adapter<ConfigAdapter.ViewHolder
         card.setBackgroundColor(context.getColor(android.R.color.transparent));
         card.setStrokeWidth(0);
 
+        // Main vertical layout for the card content
         LinearLayout mainLayout = new LinearLayout(context);
         mainLayout.setOrientation(LinearLayout.VERTICAL);
         mainLayout.setPadding(
@@ -85,15 +103,15 @@ public class ConfigAdapter extends RecyclerView.Adapter<ConfigAdapter.ViewHolder
         );
         mainLayout.setBackgroundResource(R.drawable.config_item_background);
 
-        // Top row: Number + Title + Status
+        // Contains: Number | Title + Status | Delete Button
         LinearLayout topRow = new LinearLayout(context);
         topRow.setOrientation(LinearLayout.HORIZONTAL);
-        topRow.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        topRow.setGravity(Gravity.CENTER_VERTICAL);
 
-        // Number container - bigger
+        // --- Number Container (Circle badge with config number) ---
         LinearLayout numberContainer = new LinearLayout(context);
         numberContainer.setOrientation(LinearLayout.VERTICAL);
-        numberContainer.setGravity(android.view.Gravity.CENTER);
+        numberContainer.setGravity(Gravity.CENTER);
         LinearLayout.LayoutParams numberParams = new LinearLayout.LayoutParams(
                 UiUtils.dp(context, 40),
                 UiUtils.dp(context, 40)
@@ -105,11 +123,11 @@ public class ConfigAdapter extends RecyclerView.Adapter<ConfigAdapter.ViewHolder
         TextView configNumber = new TextView(context);
         configNumber.setTextSize(UiUtils.sp(context, 5));
         configNumber.setTextColor(context.getColor(android.R.color.white));
-        configNumber.setTypeface(null, android.graphics.Typeface.BOLD);
-        configNumber.setGravity(android.view.Gravity.CENTER);
+        configNumber.setTypeface(null, Typeface.BOLD);
+        configNumber.setGravity(Gravity.CENTER);
         numberContainer.addView(configNumber);
 
-        // Title and status container
+        // --- Title Container ---
         LinearLayout titleContainer = new LinearLayout(context);
         titleContainer.setOrientation(LinearLayout.VERTICAL);
         titleContainer.setLayoutParams(new LinearLayout.LayoutParams(
@@ -120,22 +138,22 @@ public class ConfigAdapter extends RecyclerView.Adapter<ConfigAdapter.ViewHolder
 
         LinearLayout titleRow = new LinearLayout(context);
         titleRow.setOrientation(LinearLayout.HORIZONTAL);
-        titleRow.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        titleRow.setGravity(Gravity.CENTER_VERTICAL);
 
+        // Title text
         TextView title = new TextView(context);
         title.setTextSize(UiUtils.sp(context, 7));
         title.setTextColor(context.getColor(android.R.color.white));
-        title.setTypeface(null, android.graphics.Typeface.BOLD);
+        title.setTypeface(null, Typeface.BOLD);
         title.setMaxLines(1);
         title.setEllipsize(android.text.TextUtils.TruncateAt.END);
-        LinearLayout.LayoutParams titleParams = new LinearLayout.LayoutParams(
+        title.setLayoutParams(new LinearLayout.LayoutParams(
                 0,
                 ViewGroup.LayoutParams.WRAP_CONTENT,
                 1
-        );
-        title.setLayoutParams(titleParams);
+        ));
 
-        // Status dot - bigger
+        // Status dot (shows connected/disconnected state)
         View statusDot = new View(context);
         LinearLayout.LayoutParams dotParams = new LinearLayout.LayoutParams(
                 UiUtils.dp(context, 10),
@@ -149,22 +167,39 @@ public class ConfigAdapter extends RecyclerView.Adapter<ConfigAdapter.ViewHolder
         titleRow.addView(statusDot);
         titleContainer.addView(titleRow);
 
+        // --- Delete Button (visible only for selected item) ---
+        ImageView deleteButton = new ImageView(context);
+        LinearLayout.LayoutParams deleteParams = new LinearLayout.LayoutParams(
+                UiUtils.dp(context, 32),
+                UiUtils.dp(context, 32)
+        );
+        deleteParams.leftMargin = UiUtils.dp(context, 8);
+        deleteButton.setLayoutParams(deleteParams);
+        deleteButton.setImageResource(R.drawable.ic_delete);
+        deleteButton.setColorFilter(context.getColor(R.color.gray_400));
+        deleteButton.setVisibility(View.GONE); // Hidden by default
+
         topRow.addView(numberContainer);
         topRow.addView(titleContainer);
+        topRow.addView(deleteButton);
 
-        // Middle row: Protocol badge + Server
+        // Contains: Protocol Badge | Server Address
         LinearLayout middleRow = new LinearLayout(context);
         middleRow.setOrientation(LinearLayout.HORIZONTAL);
         middleRow.setPadding(0, UiUtils.dp(context, 10), 0, 0);
-        middleRow.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        middleRow.setGravity(Gravity.CENTER_VERTICAL);
 
-        // Protocol badge - bigger
+        // Protocol badge (VLESS, VMESS, TROJAN, etc.)
         TextView protocolBadge = new TextView(context);
         protocolBadge.setTextSize(UiUtils.sp(context, 5));
         protocolBadge.setTextColor(context.getColor(android.R.color.white));
-        protocolBadge.setTypeface(null, android.graphics.Typeface.BOLD);
-        protocolBadge.setPadding(UiUtils.dp(context, 12), UiUtils.dp(context, 4),
-                UiUtils.dp(context, 12), UiUtils.dp(context, 4));
+        protocolBadge.setTypeface(null, Typeface.BOLD);
+        protocolBadge.setPadding(
+                UiUtils.dp(context, 12),
+                UiUtils.dp(context, 4),
+                UiUtils.dp(context, 12),
+                UiUtils.dp(context, 4)
+        );
         protocolBadge.setBackgroundResource(R.drawable.protocol_badge);
         LinearLayout.LayoutParams badgeParams = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT,
@@ -173,7 +208,7 @@ public class ConfigAdapter extends RecyclerView.Adapter<ConfigAdapter.ViewHolder
         badgeParams.rightMargin = UiUtils.dp(context, 12);
         protocolBadge.setLayoutParams(badgeParams);
 
-        // Server address
+        // Server address with icon
         TextView serverAddress = new TextView(context);
         serverAddress.setTextSize(UiUtils.sp(context, 5));
         serverAddress.setTextColor(context.getColor(R.color.gray_300));
@@ -189,7 +224,7 @@ public class ConfigAdapter extends RecyclerView.Adapter<ConfigAdapter.ViewHolder
         middleRow.addView(protocolBadge);
         middleRow.addView(serverAddress);
 
-        // Security info row
+        // Contains: Security info (encryption, method, flow)
         LinearLayout securityRow = new LinearLayout(context);
         securityRow.setOrientation(LinearLayout.HORIZONTAL);
         securityRow.setPadding(0, UiUtils.dp(context, 6), 0, 0);
@@ -207,7 +242,7 @@ public class ConfigAdapter extends RecyclerView.Adapter<ConfigAdapter.ViewHolder
 
         securityRow.addView(securityInfo);
 
-        // Bottom row: Connection details
+        // Contains: Network type, SNI, Host, Path, etc.
         TextView connectionDetails = new TextView(context);
         connectionDetails.setTextSize(UiUtils.sp(context, 4));
         connectionDetails.setTextColor(context.getColor(R.color.gray_500));
@@ -215,7 +250,7 @@ public class ConfigAdapter extends RecyclerView.Adapter<ConfigAdapter.ViewHolder
         connectionDetails.setMaxLines(3);
         connectionDetails.setEllipsize(android.text.TextUtils.TruncateAt.END);
 
-        // Add divider line
+        // Divider line
         View divider = new View(context);
         LinearLayout.LayoutParams dividerParams = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
@@ -226,6 +261,7 @@ public class ConfigAdapter extends RecyclerView.Adapter<ConfigAdapter.ViewHolder
         divider.setLayoutParams(dividerParams);
         divider.setBackgroundColor(context.getColor(R.color.gray_700));
 
+        // Add all rows to main layout
         mainLayout.addView(topRow);
         mainLayout.addView(middleRow);
         mainLayout.addView(securityRow);
@@ -234,7 +270,7 @@ public class ConfigAdapter extends RecyclerView.Adapter<ConfigAdapter.ViewHolder
         card.addView(mainLayout);
 
         return new ViewHolder(card, title, statusDot, configNumber,
-                protocolBadge, serverAddress, connectionDetails, securityInfo);
+                protocolBadge, serverAddress, connectionDetails, securityInfo, deleteButton);
     }
 
     @Override
@@ -247,7 +283,6 @@ public class ConfigAdapter extends RecyclerView.Adapter<ConfigAdapter.ViewHolder
         VpnConfig config = configs.get(adapterPosition);
         ProfileItem profile = config.getProfile();
 
-        // Set title
         String displayName = profile.getRemarks();
         if (displayName == null || displayName.isEmpty()) {
             displayName = config.getName();
@@ -255,27 +290,20 @@ public class ConfigAdapter extends RecyclerView.Adapter<ConfigAdapter.ViewHolder
         holder.title.setText(displayName);
         holder.configNumber.setText(String.valueOf(adapterPosition + 1));
 
-        // Set protocol badge with proper color
         EConfigType configType = profile.getConfigType();
-        String protocolName = configType.getProtocolScheme().toUpperCase();
-        holder.protocolBadge.setText(protocolName);
+        holder.protocolBadge.setText(configType.getProtocolScheme().toUpperCase());
+        holder.protocolBadge.setBackgroundColor(getProtocolColor(configType));
 
-        // Set badge color based on protocol
-        int badgeColor = getProtocolColor(configType);
-        holder.protocolBadge.setBackgroundColor(badgeColor);
-
-        // Set server address
         String server = profile.getServer();
         String port = profile.getServerPort();
         if (server != null && !server.isEmpty()) {
-            String serverDisplay = port != null && !port.isEmpty() ?
+            String serverDisplay = (port != null && !port.isEmpty()) ?
                     server + ":" + port : server;
             holder.serverAddress.setText("🌐 " + serverDisplay);
         } else {
             holder.serverAddress.setText("❌ No server info");
         }
 
-        // Build security info
         StringBuilder securityInfo = new StringBuilder();
 
         String security = profile.getSecurity();
@@ -297,14 +325,12 @@ public class ConfigAdapter extends RecyclerView.Adapter<ConfigAdapter.ViewHolder
 
         holder.securityInfo.setText(securityInfo.toString());
 
-        // Build connection details
         StringBuilder details = new StringBuilder();
 
         // Network type
         String network = profile.getNetwork();
         if (network != null && !network.isEmpty()) {
-            String networkIcon = getNetworkIcon(network);
-            details.append(networkIcon).append(" Network: ").append(network.toUpperCase());
+            details.append(getNetworkIcon(network)).append(" Network: ").append(network.toUpperCase());
         }
 
         // SNI
@@ -329,21 +355,22 @@ public class ConfigAdapter extends RecyclerView.Adapter<ConfigAdapter.ViewHolder
             details.append("📁 Path: ").append(shortPath);
         }
 
-        // Additional info
+        // ALPN
         String alpn = profile.getAlpn();
         if (alpn != null && !alpn.isEmpty()) {
             if (details.length() > 0) details.append("  │  ");
             details.append("🔄 ALPN: ").append(alpn);
         }
 
+        // Fingerprint
         String fingerPrint = profile.getFingerPrint();
         if (fingerPrint != null && !fingerPrint.isEmpty()) {
             if (details.length() > 0) details.append("  │  ");
             details.append("🖐️ FP: ").append(fingerPrint);
         }
 
+        // If no details, show a summary
         if (details.length() == 0) {
-            // If no details, show a summary
             details.append("📡 ").append(configType.getProtocolScheme().toUpperCase());
             if (server != null) {
                 details.append("  │  ").append(server);
@@ -351,11 +378,10 @@ public class ConfigAdapter extends RecyclerView.Adapter<ConfigAdapter.ViewHolder
         }
 
         holder.connectionDetails.setText(details.toString());
-
-        // Update UI based on selection state
         LinearLayout mainLayout = (LinearLayout) holder.card.getChildAt(0);
 
         if (selectedPosition == adapterPosition) {
+            // Selected state - highlight the card
             holder.card.setStrokeColor(context.getColor(R.color.purple_500));
             holder.card.setStrokeWidth(UiUtils.dp(context, 2));
             holder.card.setCardElevation(UiUtils.dp(context, 8));
@@ -367,7 +393,12 @@ public class ConfigAdapter extends RecyclerView.Adapter<ConfigAdapter.ViewHolder
             holder.statusDot.setBackgroundResource(R.drawable.status_indicator_connected);
             holder.configNumber.setBackgroundResource(R.drawable.config_number_badge_selected);
             holder.configNumber.setTextColor(context.getColor(android.R.color.white));
+
+            // Show delete button for selected item
+            holder.deleteButton.setVisibility(View.VISIBLE);
+            holder.deleteButton.setColorFilter(context.getColor(R.color.purple_500));
         } else {
+            // Unselected state - normal appearance
             holder.card.setStrokeWidth(0);
             holder.card.setCardElevation(UiUtils.dp(context, 2));
             mainLayout.setBackgroundResource(R.drawable.config_item_background);
@@ -378,29 +409,83 @@ public class ConfigAdapter extends RecyclerView.Adapter<ConfigAdapter.ViewHolder
             holder.statusDot.setBackgroundResource(R.drawable.status_indicator_disconnected);
             holder.configNumber.setBackgroundResource(R.drawable.config_number_badge);
             holder.configNumber.setTextColor(context.getColor(android.R.color.white));
+
+            // Hide delete button for unselected items
+            holder.deleteButton.setVisibility(View.GONE);
         }
 
-        holder.itemView.setOnClickListener(v -> {
-            int previousSelected = selectedPosition;
-            int currentPosition = holder.getAdapterPosition();
+        // Click listener for selecting a config
+        holder.itemView.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                int currentPosition = holder.getAdapterPosition();
+                if (currentPosition == RecyclerView.NO_POSITION) {
+                    return;
+                }
 
-            if (currentPosition == RecyclerView.NO_POSITION) {
-                return;
+                int previousSelected = selectedPosition;
+                selectedPosition = currentPosition;
+
+                // Update previous selected item
+                if (previousSelected != RecyclerView.NO_POSITION) {
+                    notifyItemChanged(previousSelected);
+                }
+                // Update current selected item
+                notifyItemChanged(currentPosition);
+
+                if (listener != null) {
+                    listener.onConfigSelected(config);
+                }
             }
+        });
 
-            selectedPosition = currentPosition;
-
-            if (previousSelected != RecyclerView.NO_POSITION) {
-                notifyItemChanged(previousSelected);
-            }
-            notifyItemChanged(currentPosition);
-
-            if (listener != null) {
-                listener.onConfigSelected(config);
+        // Click listener for delete button
+        holder.deleteButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                int currentPosition = holder.getAdapterPosition();
+                if (currentPosition == RecyclerView.NO_POSITION) {
+                    return;
+                }
+                deleteItem(currentPosition);
             }
         });
     }
 
+    /**
+     * Delete a configuration item from the list
+     * @param position Position of the item to delete
+     */
+    private void deleteItem(int position) {
+        if (position < 0 || position >= configs.size()) {
+            return;
+        }
+
+        VpnConfig config = configs.get(position);
+
+        // Remove from list
+        configs.remove(position);
+
+        // Update selected position
+        if (selectedPosition == position) {
+            selectedPosition = RecyclerView.NO_POSITION;
+        } else if (selectedPosition > position) {
+            selectedPosition--;
+        }
+
+        // Notify adapter about the removal
+        notifyItemRemoved(position);
+        notifyItemRangeChanged(position, configs.size() - position);
+
+        // Call listener
+        if (listener != null) {
+            listener.onConfigDeleted(position, config);
+        }
+    }
+
+    /**
+     * Get color for protocol badge based on protocol type
+     */
     private int getProtocolColor(EConfigType configType) {
         switch (configType) {
             case VLESS:
@@ -421,7 +506,12 @@ public class ConfigAdapter extends RecyclerView.Adapter<ConfigAdapter.ViewHolder
         }
     }
 
+    /**
+     * Get appropriate icon for network type
+     */
     private String getNetworkIcon(String network) {
+        if (network == null) return "🔌";
+
         switch (network.toLowerCase()) {
             case "tcp":
                 return "🔗";
@@ -441,8 +531,46 @@ public class ConfigAdapter extends RecyclerView.Adapter<ConfigAdapter.ViewHolder
         }
     }
 
+    /**
+     * Get the currently selected position
+     */
     public int getSelectedPosition() {
         return selectedPosition;
+    }
+
+    /**
+     * Get the currently selected configuration
+     */
+    public VpnConfig getSelectedConfig() {
+        if (selectedPosition != RecyclerView.NO_POSITION && selectedPosition < configs.size()) {
+            return configs.get(selectedPosition);
+        }
+        return null;
+    }
+
+    /**
+     * Update the entire list of configurations
+     */
+    public void updateConfigs(List<VpnConfig> newConfigs) {
+        this.configs.clear();
+        this.configs.addAll(newConfigs);
+        selectedPosition = RecyclerView.NO_POSITION;
+        notifyDataSetChanged();
+    }
+
+    /**
+     * Add a new configuration to the list
+     */
+    public void addConfig(VpnConfig config) {
+        configs.add(config);
+        notifyItemInserted(configs.size() - 1);
+    }
+
+    /**
+     * Remove a configuration by position
+     */
+    public void removeConfig(int position) {
+        deleteItem(position);
     }
 
     @Override

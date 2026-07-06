@@ -118,6 +118,7 @@ class CoreVpnService : VpnService(), ServiceControl {
         LogUtil.i(AppConfig.TAG, "StartCore-VPN: Service command received")
         setupVpnService()
         startService()
+
         return START_STICKY
         //return super.onStartCommand(intent, flags, startId)
     }

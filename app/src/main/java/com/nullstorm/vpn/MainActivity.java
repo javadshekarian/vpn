@@ -7,6 +7,8 @@ import android.content.res.ColorStateList;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.net.Uri;
+import android.net.VpnService;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -36,9 +38,12 @@ import com.google.android.material.card.MaterialCardView;
 import com.google.android.material.navigation.NavigationView;
 import com.nullstorm.vpn.adapter.ConfigAdapter;
 import com.nullstorm.vpn.model.VpnConfig;
+import com.nullstorm.vpn.parser.core.CoreServiceManager;
 import com.nullstorm.vpn.parser.dto.entities.ProfileItem;
 import com.nullstorm.vpn.parser.fmt.VlessFmt;
 import com.nullstorm.vpn.parser.fmt.VmessFmt;
+import com.nullstorm.vpn.parser.handler.MmkvManager;
+import com.nullstorm.vpn.parser.service.CoreVpnService;
 import com.nullstorm.vpn.utils.UiUtils;
 import com.nullstorm.vpn.utils.Utils;
 
@@ -50,10 +55,12 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-public class MainActivity extends AppCompatActivity {
+public class MainActivity extends AppCompatActivity implements ConfigAdapter.OnConfigClickListener {
+
     private static final String TAG = "MainActivity";
     private static final String PREFS_NAME = "vpn_configs";
     private static final String KEY_CONFIGS = "configs_list";
+    private static final int REQUEST_VPN_PERMISSION = 100;
 
     private final List<VpnConfig> configs = new ArrayList<>();
     private ConfigAdapter adapter;
@@ -64,6 +71,9 @@ public class MainActivity extends AppCompatActivity {
     private boolean isProcessing = false;
     private DrawerLayout drawerLayout;
     private SharedPreferences sharedPreferences;
+    private RecyclerView recyclerView;
+    private VpnConfig pendingConfig = null;
+    private String currentConfigGuid = null;
 
     private final ActivityResultLauncher<String> filePicker
             = registerForActivityResult(
@@ -79,22 +89,33 @@ public class MainActivity extends AppCompatActivity {
         setupDrawer();
     }
 
-    private void loadConfigsFromStorage(){
+    private void loadConfigsFromStorage() {
         Set<String> configSet = sharedPreferences.getStringSet(KEY_CONFIGS, new HashSet<>());
         configs.clear();
-        for(String configData: configSet){
+        for (String configData : configSet) {
             String[] parts = configData.split("\\|\\|\\|");
-            String fixedLink = Utils.sanitizeVlessLink(parts[1]);
-            ProfileItem profile = VmessFmt.INSTANCE.parse(fixedLink);
-            if(parts.length == 2)
-                configs.add(new VpnConfig(parts[0], parts[1], profile));
+            if (parts.length == 2) {
+                String fixedLink = Utils.sanitizeVlessLink(parts[1]);
+                ProfileItem profile = null;
+
+                if (fixedLink != null && fixedLink.startsWith("vless://")) {
+                    profile = VlessFmt.INSTANCE.parse(fixedLink);
+                } else if (fixedLink != null && fixedLink.startsWith("vmess://")) {
+                    profile = VmessFmt.INSTANCE.parse(fixedLink);
+                }
+
+                if (profile != null) {
+                    configs.add(new VpnConfig(parts[0], parts[1], profile));
+                }
+            }
         }
     }
 
-    private void saveConfigsToStorage(){
+    private void saveConfigsToStorage() {
         Set<String> configSet = new HashSet<>();
-        for(VpnConfig config: configs)
+        for (VpnConfig config : configs) {
             configSet.add(config.getName() + "|||" + config.getContent());
+        }
         sharedPreferences.edit().putStringSet(KEY_CONFIGS, configSet).apply();
     }
 
@@ -248,10 +269,10 @@ public class MainActivity extends AppCompatActivity {
 
         statusIndicator = new View(this);
         LinearLayout.LayoutParams dotParams = new LinearLayout.LayoutParams(
-                UiUtils.dp(this, 0),
-                UiUtils.dp(this, 0)
+                UiUtils.dp(this, 12),
+                UiUtils.dp(this, 12)
         );
-        dotParams.rightMargin = UiUtils.dp(this, 0);
+        dotParams.rightMargin = UiUtils.dp(this, 10);
         statusIndicator.setLayoutParams(dotParams);
         statusIndicator.setBackgroundResource(R.drawable.status_indicator_disconnected);
 
@@ -385,9 +406,9 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private View createConfigsList() {
-        RecyclerView recyclerView = new RecyclerView(this);
+        recyclerView = new RecyclerView(this);
         recyclerView.setLayoutManager(new LinearLayoutManager(this));
-        adapter = new ConfigAdapter(this, configs, this::onConfigSelected);
+        adapter = new ConfigAdapter(this, configs, this);
         recyclerView.setAdapter(adapter);
 
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
@@ -411,7 +432,7 @@ public class MainActivity extends AppCompatActivity {
 
         if (isConnected) {
             int selectedPosition = adapter.getSelectedPosition();
-            if(selectedPosition != RecyclerView.NO_POSITION && configs.size() > selectedPosition) {
+            if (selectedPosition != RecyclerView.NO_POSITION && configs.size() > selectedPosition) {
                 VpnConfig selectedConfig = configs.get(selectedPosition);
                 connectToVpn(selectedConfig);
             } else {
@@ -421,8 +442,9 @@ public class MainActivity extends AppCompatActivity {
                 connectButton.setEnabled(true);
                 return;
             }
+        } else {
+            disconnectFromVpn();
         }
-        else disconnectFromVpn();
 
         animateConnectButton();
         animateStatusIndicator();
@@ -433,32 +455,139 @@ public class MainActivity extends AppCompatActivity {
         }, 500);
     }
 
+    /*
+     * Connect to VPN with the selected config
+     * First check if VPN permission is granted, if not request it
+     */
     private void connectToVpn(VpnConfig config) {
-        Intent intent = new Intent(this, CustomVpnService.class);
-        intent.setAction("START_VPN");
-        intent.putExtra("config_content", config.getContent());
-        startService(intent);
+        Intent prepareIntent = VpnService.prepare(this);
+        if (prepareIntent != null) {
+            pendingConfig = config;
+            startActivityForResult(prepareIntent, REQUEST_VPN_PERMISSION);
+            return;
+        }
+        startVpnService(config);
+    }
 
-        connectionStatus.setText(R.string.vpn_connecting);
-        connectionStatus.setTextColor(getColor(R.color.purple_500));
+    /*
+     * Start the VPN service using CoreVpnService (like v2rayNG)
+     */
+    private void startVpnService(VpnConfig config) {
+        try {
+            // Save config to MMKV for CoreServiceManager
+            String guid = "vpn_config_" + System.currentTimeMillis();
+            MmkvManager.INSTANCE.encodeServerConfig(guid, config.getProfile());
+            MmkvManager.INSTANCE.setSelectServer(guid);
+            currentConfigGuid = guid;
 
-        new Handler(Looper.getMainLooper()).postDelayed(() -> {
-            connectionStatus.setText(R.string.vpn_connected);
-            connectionStatus.setTextColor(getColor(R.color.green_400));
-        }, 1500);
+            // Setup required settings for CoreVpnService
+            setupVpnSettings();
+
+            // Start CoreVpnService (like v2rayNG)
+            Intent intent = new Intent(this, CoreVpnService.class);
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                startForegroundService(intent);
+            } else {
+                startService(intent);
+            }
+
+            connectionStatus.setText(R.string.vpn_connecting);
+            connectionStatus.setTextColor(getColor(R.color.purple_500));
+
+            new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                if (CoreServiceManager.INSTANCE.isRunning()) {
+                    connectionStatus.setText(R.string.vpn_connected);
+                    connectionStatus.setTextColor(getColor(R.color.green_400));
+                    statusIndicator.setBackgroundResource(R.drawable.status_indicator_connected);
+                }
+            }, 2000);
+
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to start VPN service", e);
+            Toast.makeText(this, "Failed to start VPN: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+            isConnected = false;
+            connectButton.setEnabled(true);
+            isProcessing = false;
+        }
+    }
+
+    /*
+     * Setup required settings for CoreVpnService
+     */
+    private void setupVpnSettings() {
+        try {
+            // Enable VPN mode (required for CoreVpnService)
+            MmkvManager.INSTANCE.encodeSettings("pref_vpn_mode", true);
+
+            // Disable root mode
+            MmkvManager.INSTANCE.encodeSettings("pref_root_mode", false);
+
+            // Disable proxy sharing
+            MmkvManager.INSTANCE.encodeSettings("pref_proxy_sharing", false);
+
+            // ===== تنظیمات DNS =====
+            Set<String> dnsSet = new HashSet<>();
+            dnsSet.add("1.1.1.1");
+            dnsSet.add("8.8.8.8");
+            dnsSet.add("9.9.9.9");
+            MmkvManager.INSTANCE.encodeSettings("pref_vpn_dns", dnsSet);
+
+            // فعال کردن DNS داخلی
+            MmkvManager.INSTANCE.encodeSettings("pref_local_dns_enabled", true);
+
+            // فعال کردن FakeDNS
+            MmkvManager.INSTANCE.encodeSettings("pref_fake_dns_enabled", true);
+
+            // ===== تنظیمات مسیریابی =====
+            MmkvManager.INSTANCE.encodeSettings("pref_routing_domain_strategy", "IPIfNonMatch");
+
+            // ===== تنظیمات شبکه =====
+            MmkvManager.INSTANCE.encodeSettings("pref_vpn_mtu", 1500);
+            MmkvManager.INSTANCE.encodeSettings("pref_ipv6_enabled", false);
+
+            // ===== تنظیمات Sniffing =====
+            MmkvManager.INSTANCE.encodeSettings("pref_sniffing_enabled", true);
+
+            // ===== تنظیمات دیگر =====
+            MmkvManager.INSTANCE.encodeSettings("pref_per_app_proxy", false);
+
+            // غیرفعال کردن HevTun (اگر مشکل دارد)
+            MmkvManager.INSTANCE.encodeSettings("pref_hev_tun", false);
+
+            Log.i(TAG, "VPN settings configured");
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to setup VPN settings", e);
+        }
     }
 
     private void disconnectFromVpn() {
-        Intent intent = new Intent(this, CustomVpnService.class);
-        stopService(intent);
+        try {
+            // Stop CoreVpnService
+            Intent intent = new Intent(this, CoreVpnService.class);
+            stopService(intent);
 
-        connectionStatus.setText(R.string.vpn_disconnecting);
-        connectionStatus.setTextColor(getColor(R.color.gray_500));
+            // Clear selection
+            if (currentConfigGuid != null) {
+                String selected = MmkvManager.INSTANCE.getSelectServer();
+                if (selected != null && selected.equals(currentConfigGuid)) {
+                    MmkvManager.INSTANCE.setSelectServer("");
+                }
+                currentConfigGuid = null;
+            }
 
-        new Handler(Looper.getMainLooper()).postDelayed(() -> {
-            connectionStatus.setText(R.string.vpn_disconnected);
-            connectionStatus.setTextColor(getColor(R.color.gray_400));
-        }, 500);
+            connectionStatus.setText(R.string.vpn_disconnecting);
+            connectionStatus.setTextColor(getColor(R.color.gray_500));
+
+            new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                connectionStatus.setText(R.string.vpn_disconnected);
+                connectionStatus.setTextColor(getColor(R.color.gray_400));
+                statusIndicator.setBackgroundResource(R.drawable.status_indicator_disconnected);
+            }, 500);
+
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to disconnect VPN", e);
+        }
     }
 
     private void animateConnectButton() {
@@ -501,7 +630,28 @@ public class MainActivity extends AppCompatActivity {
         pulse.start();
     }
 
-    private void onConfigSelected(VpnConfig config) {
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == REQUEST_VPN_PERMISSION) {
+            if (resultCode == RESULT_OK && pendingConfig != null) {
+                startVpnService(pendingConfig);
+                pendingConfig = null;
+            } else {
+                Toast.makeText(this, "VPN permission denied", Toast.LENGTH_SHORT).show();
+                pendingConfig = null;
+                isConnected = false;
+                connectButton.setEnabled(true);
+                isProcessing = false;
+                connectionStatus.setText(R.string.vpn_disconnected);
+                connectionStatus.setTextColor(getColor(R.color.gray_400));
+                statusIndicator.setBackgroundResource(R.drawable.status_indicator_disconnected);
+            }
+        }
+    }
+
+    @Override
+    public void onConfigSelected(VpnConfig config) {
         if (isConnected) {
             isConnected = false;
             connectButton.setText(R.string.vpn_disconnect);
@@ -515,10 +665,58 @@ public class MainActivity extends AppCompatActivity {
             connectionStatus.setTextColor(getColor(R.color.gray_400));
             statusIndicator.setBackgroundResource(R.drawable.status_indicator_disconnected);
 
-            Intent intent = new Intent(this, CustomVpnService.class);
+            Intent intent = new Intent(this, CoreVpnService.class);
             stopService(intent);
-            Log.i("MainActivity", "onConfigSelected Is Called, Your Config Is: " + config);
+
+            // Clear selection
+            if (currentConfigGuid != null) {
+                String selected = MmkvManager.INSTANCE.getSelectServer();
+                if (selected != null && selected.equals(currentConfigGuid)) {
+                    MmkvManager.INSTANCE.setSelectServer("");
+                }
+                currentConfigGuid = null;
+            }
         }
+        Log.i("MainActivity", "onConfigSelected Called, Config: " + config.getName());
+    }
+
+    @Override
+    public void onConfigDeleted(int position, VpnConfig config) {
+        configs.remove(position);
+        adapter.notifyItemRemoved(position);
+        adapter.notifyItemRangeChanged(position, configs.size() - position);
+        saveConfigsToStorage();
+
+        if (isConnected) {
+            int selectedPosition = adapter.getSelectedPosition();
+            if (selectedPosition == RecyclerView.NO_POSITION) {
+                isConnected = false;
+                connectButton.setText(R.string.vpn_disconnect);
+                connectButton.setTextColor(getColor(R.color.red_400));
+                connectButton.setBackgroundTintList(
+                        ColorStateList.valueOf(Color.parseColor("#1F1F1F"))
+                );
+                connectButton.setStrokeColor(ColorStateList.valueOf(Color.parseColor("#3A3A3A")));
+
+                connectionStatus.setText(R.string.vpn_disconnected);
+                connectionStatus.setTextColor(getColor(R.color.gray_400));
+                statusIndicator.setBackgroundResource(R.drawable.status_indicator_disconnected);
+
+                Intent intent = new Intent(this, CoreVpnService.class);
+                stopService(intent);
+
+                // Clear selection
+                if (currentConfigGuid != null) {
+                    String selected = MmkvManager.INSTANCE.getSelectServer();
+                    if (selected != null && selected.equals(currentConfigGuid)) {
+                        MmkvManager.INSTANCE.setSelectServer("");
+                    }
+                    currentConfigGuid = null;
+                }
+            }
+        }
+
+        Toast.makeText(this, "Config deleted: " + config.getName(), Toast.LENGTH_SHORT).show();
     }
 
     private void onFileSelected(Uri uri) {
@@ -538,13 +736,30 @@ public class MainActivity extends AppCompatActivity {
             Log.i(TAG, "Config imported successfully");
 
             String fixedLink = Utils.sanitizeVlessLink(content);
-            ProfileItem profile = VlessFmt.INSTANCE.parse(fixedLink);
+            ProfileItem profile = null;
+
+            if (fixedLink != null && fixedLink.startsWith("vless://")) {
+                profile = VlessFmt.INSTANCE.parse(fixedLink);
+            } else if (fixedLink != null && fixedLink.startsWith("vmess://")) {
+                profile = VmessFmt.INSTANCE.parse(fixedLink);
+            }
+
+            if (profile == null) {
+                Toast.makeText(this, "Invalid config format", Toast.LENGTH_SHORT).show();
+                return;
+            }
 
             String fileName = uri.getLastPathSegment();
             if (fileName != null && fileName.contains("/"))
                 fileName = fileName.substring(fileName.lastIndexOf("/") + 1);
 
-            configs.add(new VpnConfig(fileName != null ? fileName : getString(R.string.vpn_imported_config), content, profile));
+            VpnConfig newConfig = new VpnConfig(
+                    fileName != null ? fileName : getString(R.string.vpn_imported_config),
+                    content,
+                    profile
+            );
+
+            configs.add(newConfig);
             adapter.notifyItemInserted(configs.size() - 1);
             saveConfigsToStorage();
 
@@ -552,6 +767,24 @@ public class MainActivity extends AppCompatActivity {
         } catch (Exception e) {
             Log.e(TAG, "Import File Failed", e);
             Toast.makeText(this, R.string.vpn_config_import_failed, Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        // Update connection status if VPN is running
+        if (CoreServiceManager.INSTANCE.isRunning()) {
+            connectionStatus.setText(R.string.vpn_connected);
+            connectionStatus.setTextColor(getColor(R.color.green_400));
+            statusIndicator.setBackgroundResource(R.drawable.status_indicator_connected);
+            isConnected = true;
+            connectButton.setText(R.string.vpn_connect);
+            connectButton.setTextColor(getColor(R.color.white));
+            connectButton.setBackgroundTintList(
+                    ColorStateList.valueOf(Color.parseColor("#2E7D32"))
+            );
+            connectButton.setStrokeColor(ColorStateList.valueOf(Color.parseColor("#4CAF50")));
         }
     }
 }
