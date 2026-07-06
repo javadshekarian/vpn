@@ -616,10 +616,6 @@ public class MainActivity extends AppCompatActivity implements ConfigAdapter.OnC
         if (guid != null && !guid.isEmpty())
             MmkvManager.INSTANCE.removeServer(guid);
 
-        configs.remove(position);
-        adapter.notifyItemRemoved(position);
-        adapter.notifyItemRangeChanged(position, configs.size() - position);
-
         if (isConnected && guid != null && guid.equals(currentConfigGuid)) {
             isConnected = false;
             connectButton.setText(R.string.vpn_disconnect);
@@ -690,8 +686,7 @@ public class MainActivity extends AppCompatActivity implements ConfigAdapter.OnC
                     profile
             );
 
-            configs.add(newConfig);
-            adapter.notifyItemInserted(configs.size() - 1);
+            adapter.addConfig(newConfig);
 
             MmkvManager.INSTANCE.encodeServerRaw(guid, newConfig.getContent());
             MmkvManager.INSTANCE.setSelectServer(guid);

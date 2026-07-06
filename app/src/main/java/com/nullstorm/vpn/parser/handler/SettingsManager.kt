@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.res.AssetManager
 import android.os.Build
 import android.text.TextUtils
+import android.util.Log
 import androidx.appcompat.app.AppCompatDelegate
 import com.nullstorm.vpn.parser.AppConfig
 import com.nullstorm.vpn.parser.AppConfig.ANG_PACKAGE
@@ -389,8 +390,15 @@ object SettingsManager {
      * @return A list of VPN DNS servers.
      */
     fun getVpnDnsServers(): List<String> {
-        val vpnDns = MmkvManager.decodeSettingsString(AppConfig.PREF_VPN_DNS) ?: AppConfig.DNS_VPN
-        return vpnDns.split(",").filter { Utils.isPureIpAddress(it) }
+        val vpnDns =
+            MmkvManager.decodeSettingsString(AppConfig.PREF_VPN_DNS)
+                ?: AppConfig.DNS_VPN
+
+        val list = vpnDns.split(",").filter {
+            Utils.isPureIpAddress(it)
+        }
+
+        return list
     }
 
     /**

@@ -14,6 +14,7 @@ import android.net.VpnService
 import android.os.Build
 import android.os.ParcelFileDescriptor
 import android.os.StrictMode
+import android.util.Log
 import androidx.annotation.RequiresApi
 import com.nullstorm.vpn.parser.AppConfig
 import com.nullstorm.vpn.parser.AppConfig.LOOPBACK
@@ -240,8 +241,16 @@ class CoreVpnService : VpnService(), ServiceControl {
         // Configure IPv4 settings
         builder.setMtu(SettingsManager.getVpnMtu())
         builder.addAddress(vpnConfig.ipv4Client, 30)
-        builder.addDnsServer("1.1.1.1")
-        builder.addDnsServer("8.8.8.8")
+        val dnsList = SettingsManager.getVpnDnsServers()
+
+        if (dnsList.isEmpty()) {
+            builder.addDnsServer("1.1.1.1")
+            builder.addDnsServer("8.8.8.8")
+        } else {
+            dnsList.forEach {
+                builder.addDnsServer(it)
+            }
+        }
 
         // Configure routing rules
         if (bypassLan) {

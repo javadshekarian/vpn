@@ -40,9 +40,11 @@ public class ConfigAdapter extends RecyclerView.Adapter<ConfigAdapter.ViewHolder
         void onConfigDeleted(int position, VpnConfig config);
     }
 
-    public ConfigAdapter(Context context, List<VpnConfig> configs, OnConfigClickListener listener) {
+    public ConfigAdapter(Context context,
+                         List<VpnConfig> configs,
+                         OnConfigClickListener listener) {
         this.context = context;
-        this.configs = new ArrayList<>(configs);
+        this.configs = configs;
         this.listener = listener;
     }
 
