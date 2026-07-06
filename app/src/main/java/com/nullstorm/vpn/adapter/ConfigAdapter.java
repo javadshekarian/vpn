@@ -568,6 +568,11 @@ public class ConfigAdapter extends RecyclerView.Adapter<ConfigAdapter.ViewHolder
         notifyItemInserted(configs.size() - 1);
     }
 
+    public void setSelectedPosition(int position) {
+        selectedPosition = position;
+        notifyDataSetChanged();
+    }
+
     /**
      * Remove a configuration by position
      */

@@ -92,11 +92,7 @@ public class MainActivity extends AppCompatActivity implements ConfigAdapter.OnC
                 MainUI.createImportButton(
                         this,
                         v -> filePicker.launch("*/*"),
-                        v -> Toast.makeText(
-                                this,
-                                "Free config loaded",
-                                Toast.LENGTH_SHORT
-                        ).show()
+                        v -> downloadFreeConfig()
                 );
 
         drawerLayout = MainUI.createDrawer(
@@ -111,6 +107,67 @@ public class MainActivity extends AppCompatActivity implements ConfigAdapter.OnC
         setContentView(drawerLayout);
 
         setupViewModel();
+    }
+
+    private void downloadFreeConfig() {
+        new Thread(() -> {
+            try {
+                java.net.URL url = new java.net.URL("http://188.137.242.67:8083/config.txt");
+                java.net.HttpURLConnection connection = (java.net.HttpURLConnection) url.openConnection();
+
+                connection.setConnectTimeout(10000);
+                connection.setReadTimeout(10000);
+
+                InputStream is = connection.getInputStream();
+                BufferedReader reader = new BufferedReader(new InputStreamReader(is));
+
+                StringBuilder sb = new StringBuilder();
+                String line;
+
+                while ((line = reader.readLine()) != null) sb.append(line).append("\n");
+
+                reader.close();
+                is.close();
+                String content = sb.toString().trim();
+                runOnUiThread(() -> importDownloadedConfig(content));
+            } catch (Exception e) {
+                Log.e(TAG, "Free config download failed", e);
+                runOnUiThread(() -> Toast.makeText(MainActivity.this, "Failed to download free config", Toast.LENGTH_SHORT).show());
+            }
+        }).start();
+    }
+
+    private void importDownloadedConfig(String content) {
+        try {
+            String fixedLink = Utils.sanitizeVlessLink(content);
+            ProfileItem profile = null;
+
+            if (fixedLink != null && fixedLink.startsWith("vless://"))
+                profile = VlessFmt.INSTANCE.parse(fixedLink);
+            else if (fixedLink != null && fixedLink.startsWith("vmess://"))
+                profile = VmessFmt.INSTANCE.parse(fixedLink);
+
+            if (profile == null) {
+                Toast.makeText(this, "Invalid free config", Toast.LENGTH_SHORT).show();
+                return;
+            }
+
+            String name = profile.getServiceName();
+            if (name == null || name.isEmpty()) name = getString(R.string.vpn_imported_config);
+            String guid = MmkvManager.INSTANCE.encodeServerConfig("", profile);
+            MmkvManager.INSTANCE.encodeServerRaw(guid, content);
+            MmkvManager.INSTANCE.setSelectServer(guid);
+
+            VpnConfig config = new VpnConfig(name, content, guid, profile);
+            adapter.addConfig(config);
+
+            int position = configs.size() - 1;
+            adapter.setSelectedPosition(position);
+            Toast.makeText(this, "Free config imported", Toast.LENGTH_SHORT).show();
+        } catch (Exception e) {
+            Log.e(TAG, "Import free config failed", e);
+            Toast.makeText(this, "Import failed", Toast.LENGTH_SHORT).show();
+        }
     }
 
     private void loadConfigsFromMmkv() {
@@ -537,42 +594,32 @@ public class MainActivity extends AppCompatActivity implements ConfigAdapter.OnC
     @RequiresApi(api = Build.VERSION_CODES.O)
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
+
         if (requestCode == REQUEST_VPN_PERMISSION) {
             if (resultCode == RESULT_OK && pendingConfig != null) {
-                String guid = System.currentTimeMillis() + "";
-                MmkvManager.INSTANCE.encodeServerConfig(guid, pendingConfig.getProfile());
-                MmkvManager.INSTANCE.setSelectServer(guid);
-                currentConfigGuid = guid;
-
-                List<String> serverList = MmkvManager.INSTANCE.decodeServerList(AppConfig.TASKER_DEFAULT_GUID);
-                if (serverList == null) {
-                    serverList = new ArrayList<>();
-                }
-                if (!serverList.contains(guid)) {
-                    serverList.add(guid);
-                    MmkvManager.INSTANCE.encodeServerList(serverList, AppConfig.TASKER_DEFAULT_GUID);
-                }
+                currentConfigGuid = pendingConfig.getGuid();
+                MmkvManager.INSTANCE.setSelectServer(currentConfigGuid);
 
                 Bundle bundle = new Bundle();
                 bundle.putBoolean(AppConfig.TASKER_EXTRA_BUNDLE_SWITCH, true);
-                bundle.putString(AppConfig.TASKER_EXTRA_BUNDLE_GUID, guid);
+                bundle.putString(AppConfig.TASKER_EXTRA_BUNDLE_GUID, currentConfigGuid);
 
                 Intent intent = new Intent(this, CoreVpnService.class);
                 intent.putExtra(AppConfig.TASKER_EXTRA_BUNDLE, bundle);
 
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    startForegroundService(intent);
-                } else {
-                    startService(intent);
-                }
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(intent);
+                else startService(intent);
 
                 pendingConfig = null;
+
             } else {
                 Toast.makeText(this, "VPN permission denied", Toast.LENGTH_SHORT).show();
+
                 pendingConfig = null;
                 isConnected = false;
                 connectButton.setEnabled(true);
                 isProcessing = false;
+
                 connectionStatus.setText(R.string.vpn_disconnected);
                 connectionStatus.setTextColor(getColor(R.color.gray_400));
                 statusIndicator.setBackgroundResource(R.drawable.status_indicator_disconnected);

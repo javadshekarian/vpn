@@ -58,7 +58,6 @@ public class MainUI {
         return headerLayout;
     }
 
-    // متد جدید برای ساخت دکمه‌های import
     public static View createImportButton(Context context, View.OnClickListener importListener, View.OnClickListener freeListener) {
         LinearLayout buttonContainer = new LinearLayout(context);
         buttonContainer.setOrientation(LinearLayout.HORIZONTAL);
