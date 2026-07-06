@@ -8,6 +8,11 @@ enum class NotificationChannelType(
     val channelName: String,
     val notificationId: Int
 ) {
+    VPN(
+        channelId = "vpn_channel",
+        channelName = "VPN Service",
+        notificationId = 1
+    ),
     SUBSCRIPTION_UPDATE(
         channelId = "subscription_update_channel",
         channelName = "Subscription Update Service",

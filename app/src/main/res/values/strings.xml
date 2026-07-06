@@ -32,4 +32,7 @@
     <string name="connection_test_error_status_code">Error code: #%d</string>
     <string name="title_service_restart">Service restart</string>
     <string name="notification_action_stop_v2ray">Stop</string>
+    <string name="filter_config_all">All</string>
+    <string name="toast_services_success">Start Services Success</string>
+    <string name="toast_services_failure">Start Services Failure</string>
 </resources>

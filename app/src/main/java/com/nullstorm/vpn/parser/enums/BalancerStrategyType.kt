@@ -4,7 +4,7 @@ package com.nullstorm.vpn.parser.enums
  * Load-balancing strategy types supported by xray balancer.
  *
  * @param policyGroupType The string value written into the xray config JSON.
- * @param policyGroupTypeValue The numeric string stored in [com.v2ray.ang.dto.entities.ProfileItem.policyGroupType].
+ * @param policyGroupTypeValue The numeric string stored in [com.nullstorm.vpn.dto.entities.ProfileItem.policyGroupType].
  * @param requiresBurstObservatory Whether this strategy needs a burstObservatory (leastLoad).
  * @param requiresObservatory Whether this strategy needs an observatory (leastPing).
  */

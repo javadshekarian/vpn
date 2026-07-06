@@ -21,12 +21,14 @@ import com.nullstorm.vpn.BuildConfig
 import com.nullstorm.vpn.parser.contracts.ServiceControl
 import com.nullstorm.vpn.parser.contracts.Tun2SocksControl
 import com.nullstorm.vpn.parser.core.CoreServiceManager
+import com.nullstorm.vpn.parser.enums.NotificationChannelType
 import com.nullstorm.vpn.parser.handler.MmkvManager
 import com.nullstorm.vpn.parser.handler.NotificationManager
 import com.nullstorm.vpn.parser.handler.SettingsManager
 import com.nullstorm.vpn.parser.root.RootLanSharing
 import com.nullstorm.vpn.parser.util.LogUtil
 import com.nullstorm.vpn.parser.util.MyContextWrapper
+import com.nullstorm.vpn.parser.util.NotificationHelper
 import com.nullstorm.vpn.parser.util.Utils
 import java.lang.ref.SoftReference
 
@@ -116,6 +118,12 @@ class CoreVpnService : VpnService(), ServiceControl {
     @RequiresApi(Build.VERSION_CODES.O)
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         LogUtil.i(AppConfig.TAG, "StartCore-VPN: Service command received")
+        NotificationHelper.startForeground(
+            this,
+            NotificationChannelType.VPN,
+            "VPN Running",
+            "Connecting..."
+        )
         setupVpnService()
         startService()
 
@@ -232,6 +240,8 @@ class CoreVpnService : VpnService(), ServiceControl {
         // Configure IPv4 settings
         builder.setMtu(SettingsManager.getVpnMtu())
         builder.addAddress(vpnConfig.ipv4Client, 30)
+        builder.addDnsServer("1.1.1.1")
+        builder.addDnsServer("8.8.8.8")
 
         // Configure routing rules
         if (bypassLan) {

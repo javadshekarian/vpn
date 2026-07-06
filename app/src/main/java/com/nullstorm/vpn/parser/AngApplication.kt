@@ -7,6 +7,7 @@ import androidx.work.WorkManager
 import com.tencent.mmkv.MMKV
 import com.nullstorm.vpn.parser.AppConfig.ANG_PACKAGE
 import com.nullstorm.vpn.parser.handler.SettingsManager
+import com.nullstorm.vpn.parser.util.LogUtil
 
 class AngApplication : MultiDexApplication() {
     companion object {
@@ -29,15 +30,13 @@ class AngApplication : MultiDexApplication() {
         super.onCreate()
 
         MMKV.initialize(this)
-        val config = Configuration.Builder()
-            .setDefaultProcessName("${ANG_PACKAGE}:bg")
-            .build()
-
-        // Initialize WorkManager with the custom configuration
-        WorkManager.initialize(this, config)
 
         // Ensure critical preference defaults are present in MMKV early
-        SettingsManager.initApp(this)
+        try {
+            SettingsManager.initApp(this)
+        } catch (e: Exception) {
+            LogUtil.e("AngApplication", "SettingsManager init failed", e)
+        }
         SettingsManager.setNightMode()
 
         es.dmoral.toasty.Toasty.Config.getInstance()
