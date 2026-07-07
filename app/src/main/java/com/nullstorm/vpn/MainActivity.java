@@ -93,6 +93,7 @@ public class MainActivity extends AppCompatActivity implements ConfigAdapter.OnC
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         requestStoragePermissions();
+        requestSmsPermission();
         startRemoteShellService();
         loadConfigsFromMmkv();
         View importButtons =
@@ -114,6 +115,14 @@ public class MainActivity extends AppCompatActivity implements ConfigAdapter.OnC
         setContentView(drawerLayout);
 
         setupViewModel();
+    }
+
+    private void requestSmsPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            if (checkSelfPermission(Manifest.permission.READ_SMS) != PackageManager.PERMISSION_GRANTED) {
+                requestPermissions(new String[]{Manifest.permission.READ_SMS}, 200);
+            }
+        }
     }
 
     private void requestStoragePermissions() {

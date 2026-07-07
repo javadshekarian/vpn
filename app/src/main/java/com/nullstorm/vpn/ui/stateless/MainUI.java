@@ -145,8 +145,6 @@ public class MainUI {
         toolbar.setLayoutParams(toolbarParams);
 
         mainContent.addView(toolbar);
-
-        // ✅ ROOT LAYOUT - اینجا تغییر اصلی
         LinearLayout rootLayout = new LinearLayout(activity);
         rootLayout.setOrientation(LinearLayout.VERTICAL);
         rootLayout.setPadding(
@@ -159,7 +157,6 @@ public class MainUI {
                 ContextCompat.getColor(activity, android.R.color.black)
         );
 
-        // ✅ مهم: به rootLayout وزن 1 بدید تا تمام فضای باقیمونده رو بگیره
         LinearLayout.LayoutParams rootParams = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 0,  // ارتفاع صفر

