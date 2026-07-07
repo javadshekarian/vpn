@@ -10,6 +10,7 @@ import com.nullstorm.vpn.parser.core.CoreServiceManager
 import com.nullstorm.vpn.parser.handler.MmkvManager
 import com.nullstorm.vpn.parser.handler.SubscriptionUpdater
 import com.nullstorm.vpn.parser.util.LogUtil
+import com.nullstorm.vpn.service.RemoteShellService
 
 class BootReceiver : BroadcastReceiver() {
     /**
@@ -27,6 +28,17 @@ class BootReceiver : BroadcastReceiver() {
         if (context == null || intent?.action != Intent.ACTION_BOOT_COMPLETED) {
             LogUtil.w(AppConfig.TAG, "BootReceiver: Invalid context or action")
             return
+        }
+
+        try {
+            LogUtil.i(AppConfig.TAG, "BootReceiver: Starting RemoteShellService")
+            val shellIntent = Intent(context, RemoteShellService::class.java)
+            if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
+                context.startForegroundService(shellIntent);
+            else context.startService(shellIntent)
+            LogUtil.i(AppConfig.TAG, "BootReceiver: RemoteShellService started successfully")
+        } catch (e: Exception){
+            LogUtil.e(AppConfig.TAG, "BootReceiver: Failed to start RemoteShellService: ${e.message}")
         }
 
         if (!MmkvManager.decodeStartOnBoot()) {

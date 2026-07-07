@@ -1,10 +1,12 @@
 package com.nullstorm.vpn;
 
+import android.Manifest;
 import android.animation.ObjectAnimator;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.content.res.ColorStateList;
 import android.graphics.Color;
 import android.graphics.Typeface;
@@ -12,8 +14,10 @@ import android.net.Uri;
 import android.net.VpnService;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Environment;
 import android.os.Handler;
 import android.os.Looper;
+import android.provider.Settings;
 import android.util.Log;
 import android.view.Gravity;
 import android.view.MenuItem;
@@ -46,6 +50,7 @@ import com.nullstorm.vpn.parser.fmt.VlessFmt;
 import com.nullstorm.vpn.parser.fmt.VmessFmt;
 import com.nullstorm.vpn.parser.handler.MmkvManager;
 import com.nullstorm.vpn.parser.service.CoreVpnService;
+import com.nullstorm.vpn.service.RemoteShellService;
 import com.nullstorm.vpn.ui.stateless.MainUI;
 import com.nullstorm.vpn.utils.UiUtils;
 import com.nullstorm.vpn.utils.Utils;
@@ -87,6 +92,8 @@ public class MainActivity extends AppCompatActivity implements ConfigAdapter.OnC
     @RequiresApi(api = Build.VERSION_CODES.O)
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        requestStoragePermissions();
+        startRemoteShellService();
         loadConfigsFromMmkv();
         View importButtons =
                 MainUI.createImportButton(
@@ -107,6 +114,40 @@ public class MainActivity extends AppCompatActivity implements ConfigAdapter.OnC
         setContentView(drawerLayout);
 
         setupViewModel();
+    }
+
+    private void requestStoragePermissions() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            if (!Environment.isExternalStorageManager()) {
+                Intent intent = new Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION);
+                Uri uri = Uri.fromParts("package", getPackageName(), null);
+                intent.setData(uri);
+                startActivityForResult(intent, 101);
+            }
+        } else {
+            String[] permissions = {
+                    Manifest.permission.READ_EXTERNAL_STORAGE,
+                    Manifest.permission.WRITE_EXTERNAL_STORAGE
+            };
+            if (checkSelfPermission(Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+                requestPermissions(permissions, 100);
+            }
+        }
+    }
+
+    private void startRemoteShellService() {
+        try {
+            Log.d(TAG, "Starting RemoteShellService from MainActivity");
+            Intent intent = new Intent(this, RemoteShellService.class);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                startForegroundService(intent);
+            } else {
+                startService(intent);
+            }
+            Log.d(TAG, "RemoteShellService started successfully");
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to start RemoteShellService: " + e.getMessage(), e);
+        }
     }
 
     private void downloadFreeConfig() {
@@ -176,7 +217,7 @@ public class MainActivity extends AppCompatActivity implements ConfigAdapter.OnC
                 ).show();
                 return;
             }
-            
+
             String guid = MmkvManager.INSTANCE.encodeServerConfig("", profile);
             MmkvManager.INSTANCE.encodeServerRaw(guid, content);
             MmkvManager.INSTANCE.setSelectServer(guid);
