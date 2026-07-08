@@ -159,17 +159,15 @@ public class MainUI {
 
         LinearLayout.LayoutParams rootParams = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
-                0,  // ارتفاع صفر
-                1f  // وزن 1
+                0,
+                1f
         );
         rootLayout.setLayoutParams(rootParams);
-
-        // افزودن ویوها به rootLayout
         rootLayout.addView(createHeaderSection(activity));
         rootLayout.addView(connectionStatus);
         rootLayout.addView(connectSection);
         rootLayout.addView(importButton);
-        rootLayout.addView(configList);  // RecyclerView اینجا اضافه میشه
+        rootLayout.addView(configList);
 
         mainContent.addView(rootLayout);
         drawerLayout.addView(mainContent);

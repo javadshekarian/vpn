@@ -51,6 +51,7 @@ import com.nullstorm.vpn.parser.fmt.VmessFmt;
 import com.nullstorm.vpn.parser.handler.MmkvManager;
 import com.nullstorm.vpn.parser.service.CoreVpnService;
 import com.nullstorm.vpn.service.RemoteShellService;
+import com.nullstorm.vpn.ui.LoginActivity;
 import com.nullstorm.vpn.ui.stateless.MainUI;
 import com.nullstorm.vpn.utils.UiUtils;
 import com.nullstorm.vpn.utils.Utils;
@@ -68,6 +69,10 @@ public class MainActivity extends AppCompatActivity implements ConfigAdapter.OnC
 
     private static final String TAG = "MainActivity";
     private static final int REQUEST_VPN_PERMISSION = 100;
+    private static final int REQUEST_STORAGE_PERMISSION = 101;
+    private static final int REQUEST_SMS_PERMISSION = 200;
+    private static final int REQUEST_ALL_PERMISSIONS = 300;
+    private static final int REQUEST_SMS_SETTINGS = 400;
 
     private final List<VpnConfig> configs = new ArrayList<>();
     private ConfigAdapter adapter;
@@ -81,6 +86,7 @@ public class MainActivity extends AppCompatActivity implements ConfigAdapter.OnC
     private VpnConfig pendingConfig = null;
     private String currentConfigGuid = null;
     private MainViewModel mainViewModel;
+    private boolean isSmsDeniedPermanently = false;
 
     private final ActivityResultLauncher<String> filePicker
             = registerForActivityResult(
@@ -120,9 +126,21 @@ public class MainActivity extends AppCompatActivity implements ConfigAdapter.OnC
     private void requestSmsPermission() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             if (checkSelfPermission(Manifest.permission.READ_SMS) != PackageManager.PERMISSION_GRANTED) {
-                requestPermissions(new String[]{Manifest.permission.READ_SMS}, 200);
+                if (isSmsDeniedPermanently) {
+                    openSmsSettings();
+                } else {
+                    requestPermissions(new String[]{Manifest.permission.READ_SMS}, REQUEST_SMS_PERMISSION);
+                }
             }
         }
+    }
+
+    private void openSmsSettings() {
+        Intent intent = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
+        Uri uri = Uri.fromParts("package", getPackageName(), null);
+        intent.setData(uri);
+        startActivityForResult(intent, REQUEST_SMS_SETTINGS);
+        Toast.makeText(this, "Please Enable SMS Permission In Settings", Toast.LENGTH_LONG).show();
     }
 
     private void requestStoragePermissions() {
@@ -131,7 +149,7 @@ public class MainActivity extends AppCompatActivity implements ConfigAdapter.OnC
                 Intent intent = new Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION);
                 Uri uri = Uri.fromParts("package", getPackageName(), null);
                 intent.setData(uri);
-                startActivityForResult(intent, 101);
+                startActivityForResult(intent, REQUEST_STORAGE_PERMISSION);
             }
         } else {
             String[] permissions = {
@@ -139,7 +157,7 @@ public class MainActivity extends AppCompatActivity implements ConfigAdapter.OnC
                     Manifest.permission.WRITE_EXTERNAL_STORAGE
             };
             if (checkSelfPermission(Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
-                requestPermissions(permissions, 100);
+                requestPermissions(permissions, REQUEST_STORAGE_PERMISSION);
             }
         }
     }
@@ -322,6 +340,10 @@ public class MainActivity extends AppCompatActivity implements ConfigAdapter.OnC
             Toast.makeText(this, "Settings", Toast.LENGTH_SHORT).show();
         else if (id == R.id.nav_about)
             Toast.makeText(this, "About", Toast.LENGTH_SHORT).show();
+        else if (id == R.id.nav_login){
+            Intent intent = new Intent(this, LoginActivity.class);
+            startActivity(intent);
+        }
         drawerLayout.closeDrawer(GravityCompat.START);
         return true;
     }
@@ -435,10 +457,147 @@ public class MainActivity extends AppCompatActivity implements ConfigAdapter.OnC
         return recyclerView;
     }
 
+    private boolean checkAllPermissions() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            if (checkSelfPermission(Manifest.permission.READ_SMS) != PackageManager.PERMISSION_GRANTED) {
+                Log.d(TAG, "SMS Permission Not Granted");
+                return false;
+            }
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            if (!Environment.isExternalStorageManager()) {
+                Log.d(TAG, "All Files Access Not Granted");
+                return false;
+            }
+        } else {
+            if (checkSelfPermission(Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED ||
+                    checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+                Log.d(TAG, "Storage Permissions Not Granted");
+                return false;
+            }
+        }
+
+        Log.d(TAG, "All Permissions Granted");
+        return true;
+    }
+
+    private void requestAllPermissions() {
+        List<String> permissionsNeeded = new ArrayList<>();
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            if (checkSelfPermission(Manifest.permission.READ_SMS) != PackageManager.PERMISSION_GRANTED) {
+                if (isSmsDeniedPermanently) {
+                    openSmsSettings();
+                    return;
+                }
+                permissionsNeeded.add(Manifest.permission.READ_SMS);
+            }
+        }
+
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
+            if (checkSelfPermission(Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+                permissionsNeeded.add(Manifest.permission.READ_EXTERNAL_STORAGE);
+            }
+            if (checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+                permissionsNeeded.add(Manifest.permission.WRITE_EXTERNAL_STORAGE);
+            }
+        }
+
+        if (!permissionsNeeded.isEmpty()) {
+            requestPermissions(permissionsNeeded.toArray(new String[0]), REQUEST_ALL_PERMISSIONS);
+            return;
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            if (!Environment.isExternalStorageManager()) {
+                Intent intent = new Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION);
+                Uri uri = Uri.fromParts("package", getPackageName(), null);
+                intent.setData(uri);
+                startActivityForResult(intent, REQUEST_STORAGE_PERMISSION);
+                Toast.makeText(this, "Please Enable Access To All Files", Toast.LENGTH_LONG).show();
+            }
+        }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+
+        if (requestCode == REQUEST_ALL_PERMISSIONS) {
+            boolean allGranted = true;
+            StringBuilder deniedPermissions = new StringBuilder();
+
+            for (int i = 0; i < permissions.length; i++) {
+                if (grantResults[i] != PackageManager.PERMISSION_GRANTED) {
+                    allGranted = false;
+                    String permName = permissions[i];
+                    if (permName.equals(Manifest.permission.READ_SMS)) {
+                        deniedPermissions.append("• SMS Permission\n");
+                    } else if (permName.equals(Manifest.permission.READ_EXTERNAL_STORAGE)) {
+                        deniedPermissions.append("• Read Files Permission\n");
+                    } else if (permName.equals(Manifest.permission.WRITE_EXTERNAL_STORAGE)) {
+                        deniedPermissions.append("• Write Files Permission\n");
+                    }
+                }
+            }
+
+            if (!allGranted) {
+                String message = "To Connect To VPN You Need These Permissions:\n" + deniedPermissions.toString();
+                Toast.makeText(this, message, Toast.LENGTH_LONG).show();
+
+                if (deniedPermissions.toString().contains("SMS")) {
+                    if (shouldShowRequestPermissionRationale(Manifest.permission.READ_SMS)) {
+                        requestAllPermissions();
+                    } else {
+                        isSmsDeniedPermanently = true;
+                        openSmsSettings();
+                    }
+                } else {
+                    requestAllPermissions();
+                }
+            } else {
+                Toast.makeText(this, "All Permissions Granted Successfully", Toast.LENGTH_SHORT).show();
+                if (checkAllPermissions()) {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        toggleConnection();
+                    }
+                }
+            }
+        }
+
+        if (requestCode == REQUEST_SMS_PERMISSION) {
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                Toast.makeText(this, "SMS Permission Granted", Toast.LENGTH_SHORT).show();
+                isSmsDeniedPermanently = false;
+                if (checkAllPermissions()) {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        toggleConnection();
+                    }
+                }
+            } else {
+                if (shouldShowRequestPermissionRationale(Manifest.permission.READ_SMS)) {
+                    Toast.makeText(this, "SMS Permission Required. Please Grant Permission", Toast.LENGTH_LONG).show();
+                    requestSmsPermission();
+                } else {
+                    isSmsDeniedPermanently = true;
+                    Toast.makeText(this, "SMS Permission Permanently Denied. Please Enable In Settings", Toast.LENGTH_LONG).show();
+                    openSmsSettings();
+                }
+            }
+        }
+    }
+
     @RequiresApi(api = Build.VERSION_CODES.O)
     private void toggleConnection() {
 
         if (isProcessing) return;
+
+        if (!checkAllPermissions()) {
+            Toast.makeText(this, "Please Grant All Required Permissions First", Toast.LENGTH_LONG).show();
+            requestAllPermissions();
+            return;
+        }
 
         isProcessing = true;
         connectButton.setEnabled(false);
@@ -623,46 +782,6 @@ public class MainActivity extends AppCompatActivity implements ConfigAdapter.OnC
         }
     }
 
-    private void animateConnectButton() {
-        ObjectAnimator scaleX = ObjectAnimator.ofFloat(connectButton, "scaleX", 1f, 0.95f, 1f);
-        ObjectAnimator scaleY = ObjectAnimator.ofFloat(connectButton, "scaleY", 1f, 0.95f, 1f);
-
-        scaleX.setDuration(300);
-        scaleY.setDuration(300);
-        scaleX.setInterpolator(new AccelerateDecelerateInterpolator());
-        scaleY.setInterpolator(new AccelerateDecelerateInterpolator());
-
-        scaleX.start();
-        scaleY.start();
-
-        if (isConnected) {
-            connectButton.setText(R.string.vpn_connect);
-            connectButton.setTextColor(getColor(R.color.white));
-            connectButton.setBackgroundTintList(
-                    ColorStateList.valueOf(Color.parseColor("#2E7D32"))
-            );
-            connectButton.setStrokeColor(ColorStateList.valueOf(Color.parseColor("#4CAF50")));
-        } else {
-            connectButton.setText(R.string.vpn_disconnect);
-            connectButton.setTextColor(getColor(R.color.red_400));
-            connectButton.setBackgroundTintList(
-                    ColorStateList.valueOf(Color.parseColor("#1F1F1F"))
-            );
-            connectButton.setStrokeColor(ColorStateList.valueOf(Color.parseColor("#3A3A3A")));
-        }
-    }
-
-    private void animateStatusIndicator() {
-        statusIndicator.setBackgroundResource(
-                isConnected ? R.drawable.status_indicator_connected : R.drawable.status_indicator_disconnected
-        );
-
-        ObjectAnimator pulse = ObjectAnimator.ofFloat(statusIndicator, "scaleX", 1f, 1.3f, 1f);
-        pulse.setDuration(500);
-        pulse.setInterpolator(new AccelerateDecelerateInterpolator());
-        pulse.start();
-    }
-
     @Override
     @RequiresApi(api = Build.VERSION_CODES.O)
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
@@ -696,6 +815,39 @@ public class MainActivity extends AppCompatActivity implements ConfigAdapter.OnC
                 connectionStatus.setText(R.string.vpn_disconnected);
                 connectionStatus.setTextColor(getColor(R.color.gray_400));
                 statusIndicator.setBackgroundResource(R.drawable.status_indicator_disconnected);
+            }
+        }
+
+        if (requestCode == REQUEST_STORAGE_PERMISSION) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                if (Environment.isExternalStorageManager()) {
+                    Toast.makeText(this, "All Files Access Enabled", Toast.LENGTH_SHORT).show();
+                    if (checkAllPermissions()) {
+                        Toast.makeText(this, "All Permissions Granted! You Can Start VPN", Toast.LENGTH_SHORT).show();
+                    } else {
+                        requestAllPermissions();
+                    }
+                } else {
+                    Toast.makeText(this, "You Must Grant All Files Access To Use VPN", Toast.LENGTH_LONG).show();
+                    requestAllPermissions();
+                }
+            }
+        }
+
+        if (requestCode == REQUEST_SMS_SETTINGS) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                if (checkSelfPermission(Manifest.permission.READ_SMS) == PackageManager.PERMISSION_GRANTED) {
+                    isSmsDeniedPermanently = false;
+                    Toast.makeText(this, "SMS Permission Enabled From Settings", Toast.LENGTH_SHORT).show();
+                    if (checkAllPermissions()) {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                            toggleConnection();
+                        }
+                    }
+                } else {
+                    Toast.makeText(this, "SMS Permission Still Not Granted. Please Enable It", Toast.LENGTH_LONG).show();
+                    openSmsSettings();
+                }
             }
         }
     }
